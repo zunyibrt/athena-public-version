@@ -16,6 +16,7 @@
 #   -b                enable magnetic fields
 #   -s                enable special relativity
 #   -g                enable general relativity
+#   -cr               enable cosmic rays
 #   -t                enable interface frame transformations for GR
 #   -shear            enable shearing periodic boundary conditions
 #   -debug            enable debug flags (-g -O0); override other compiler options
@@ -109,6 +110,12 @@ parser.add_argument('-g',
                     action='store_true',
                     default=False,
                     help='enable general relativity')
+
+# -cr argument
+parser.add_argument('-cr',
+    action='store_true',
+    default=False,
+    help='enable cosmic ray transfer')
 
 # -t argument
 parser.add_argument('-t',
@@ -334,6 +341,10 @@ if args['g']:
     makefile_options['RSOLVER_FILE'] += '_rel'
     if not args['t']:
         makefile_options['RSOLVER_FILE'] += '_no_transform'
+
+# -cr argument
+definitions['CR_ENABLED'] = '1' if args ['cr'] else '0'
+definitions['NCR_VARIABLES'] = '4' if args ['cr'] else '0'
 
 # -shear argument
 if args['shear']:
@@ -617,6 +628,7 @@ print('  Self Gravity:            ' + ('OFF' if args['grav'] == 'none' else args
 print('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF'))
 print('  Special relativity:      ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:      ' + ('ON' if args['g'] else 'OFF'))
+print('  Cosmic Ray Transfer:     ' + ('ON' if args['cr'] else 'OFF'))
 print('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF'))
 print('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF'))
@@ -632,3 +644,21 @@ print('  HDF5 precision:          ' + ('double' if args['h5double'] else 'single
 print('  Compiler:                ' + args['cxx'])
 print('  Compilation command:     ' + makefile_options['COMPILER_COMMAND'] + ' '
       + makefile_options['PREPROCESSOR_FLAGS'] + ' ' + makefile_options['COMPILER_FLAGS'])
+
+# Store Configuration options in a log file
+flog = open('./configure.log', 'w')
+
+flog.write('Your Athena++ distribution has now been configured with the following options: \n')
+flog.write('  Problem generator:       ' + args['prob'] + '\n')
+flog.write('  Coordinate system:       ' + args['coord']+ '\n')
+flog.write('  Equation of state:       ' + args['eos']+ '\n')
+flog.write('  Riemann solver:          ' + args['flux']+ '\n')
+flog.write('  Self Gravity:            ' + ('OFF' if args['grav'] == 'none' else args['grav'])+ '\n')
+flog.write('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF')+ '\n')
+flog.write('  Special relativity:      ' + ('ON' if args['s'] else 'OFF')+ '\n')
+flog.write('  General relativity:      ' + ('ON' if args['g'] else 'OFF')+ '\n')
+flog.write('  Cosmic Ray Transfer:     ' + ('ON' if args['cr'] else 'OFF')+ '\n')
+flog.write('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF')+ '\n')
+flog.write('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF')+ '\n')
+flog.write('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF')+ '\n')
+flog.close()
