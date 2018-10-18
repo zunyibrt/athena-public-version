@@ -19,7 +19,7 @@ def configure(*args, **kwargs):
     current_dir = os.getcwd()
     os.chdir(athena_rel_path)
     try:
-        configure_command = ['python', 'configure.py']
+        configure_command = ['python3', 'configure.py']
         for arg in args:
             configure_command.append('-{0}'.format(arg))
         for key, val in kwargs.items():
