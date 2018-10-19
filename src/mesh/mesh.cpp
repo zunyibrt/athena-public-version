@@ -1300,7 +1300,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp for private(pmb,pbval)
     for (int i=0; i<nmb; ++i) {
       pmb=pmb_array[i]; pbval=pmb->pbval;
-      pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->u, pmb->u_cr, HYDRO_CONS);
+      pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->u, pmb->pcr->u_cr, HYDRO_CONS);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->ReceiveFieldBoundaryBuffersWithWait(pmb->pfield->b);
       // send and receive shearingbox boundary conditions
@@ -1412,14 +1412,11 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 
   // CR need the time step
   if(CR_ENABLED){
-     pmb=pblock;
-     while (pmb != NULL){
-        pmb->pcr->UpdateCRTensor(pmb,pmb->phydro->w);
-        pmb->pcr->UpdateDiff(pmb, pmb->pcr->u_cr,pmb->phydro->w,pmb->pfield->bcc,pmb->pmy_mesh->dt);
-
-        pmb=pmb->next;
+     for (int i=0; i<nmb; ++i) {
+       MeshBlock *pmb = pmb_array[i];
+       pmb->pcr->UpdateCRTensor(pmb,pmb->phydro->w);
+       pmb->pcr->UpdateDiff(pmb, pmb->pcr->u_cr,pmb->phydro->w,pmb->pfield->bcc,pmb->pmy_mesh->dt);
      }
-
   }
 
   return;

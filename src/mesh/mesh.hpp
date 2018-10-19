@@ -43,7 +43,7 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
-class Cosmic Ray;
+class CosmicRay;
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
