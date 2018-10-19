@@ -27,6 +27,9 @@
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "task_list.hpp"
+#include "../cr/cr.hpp"
+#include "../cr/integrators/cr_integrators.hpp"
+
 //----------------------------------------------------------------------------------------
 //  TimeIntegratorTaskList constructor
 
@@ -218,15 +221,32 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
       AddTimeIntegratorTask(CALC_HYDFLX,(START_ALLRECV|DIFFUSE_HYD|DIFFUSE_FLD));
     else
       AddTimeIntegratorTask(CALC_HYDFLX,(START_ALLRECV|DIFFUSE_HYD));
+    if (CR_ENABLED)
+      AddTimeIntegratorTask(CALC_CRFLX,START_ALLRECV);
     if (pm->multilevel==true) { // SMR or AMR
-      AddTimeIntegratorTask(SEND_HYDFLX,CALC_HYDFLX);
-      AddTimeIntegratorTask(RECV_HYDFLX,CALC_HYDFLX);
+      if (CR_ENABLED){
+          AddTimeIntegratorTask(SEND_HYDFLX,CALC_HYDFLX|CALC_CRFLX);
+          AddTimeIntegratorTask(RECV_HYDFLX,CALC_HYDFLX|CALC_CRFLX);
+        }else{
+          AddTimeIntegratorTask(SEND_HYDFLX,CALC_HYDFLX);
+          AddTimeIntegratorTask(RECV_HYDFLX,CALC_HYDFLX);
+        }
       AddTimeIntegratorTask(INT_HYD,RECV_HYDFLX);
+      if (CR_ENABLED)
+        AddTimeIntegratorTask(INT_CR, RECV_HYDFLX);
     } else {
       AddTimeIntegratorTask(INT_HYD, CALC_HYDFLX);
+      if (CR_ENABLED)
+        AddTimeIntegratorTask(INT_CR, CALC_CRFLX);
     }
     AddTimeIntegratorTask(SRCTERM_HYD,INT_HYD);
-    AddTimeIntegratorTask(SEND_HYD,SRCTERM_HYD);
+    if (CR_ENABLED)
+      AddTimeIntegratorTask(SRCTERM_CR,INT_CR); 
+    if(CR_ENABLED){
+      AddTimeIntegratorTask(SEND_HYD,SRCTERM_HYD|SRCTERM_CR);
+    }else{
+      AddTimeIntegratorTask(SEND_HYD,SRCTERM_HYD);
+    }
     AddTimeIntegratorTask(RECV_HYD,START_ALLRECV);
     if (SHEARING_BOX) { // Shearingbox BC for Hydro
       AddTimeIntegratorTask(SEND_HYDSH,RECV_HYD);
@@ -283,12 +303,16 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
 
     // everything else
     AddTimeIntegratorTask(PHY_BVAL,CON2PRIM);
-//    if (SELF_GRAVITY_ENABLED == 1) {
-//      AddTimeIntegratorTask(CORR_GFLX,PHY_BVAL);
-//      AddTimeIntegratorTask(USERWORK,CORR_GFLX);
-//    } else {
-    AddTimeIntegratorTask(USERWORK,PHY_BVAL);
-//    }
+    
+    if(CR_ENABLED)
+      AddTimeIntegratorTask(CR_VAOPACITY,PHY_BVAL);
+    
+    if(CR_ENABLED){
+      AddTimeIntegratorTask(USERWORK,CR_VAOPACITY);
+    }else{
+      AddTimeIntegratorTask(USERWORK,PHY_BVAL);
+    }
+    
     AddTimeIntegratorTask(NEW_DT,USERWORK);
     if (pm->adaptive==true) {
       AddTimeIntegratorTask(AMR_FLAG,USERWORK);
@@ -478,6 +502,28 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::FieldDiffusion);
       break;
+    // cases for Cosmic Ray
+    case (CALC_CRFLX):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::CRFluxes);
+      break;
+    case (INT_CR):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::CRIntegrate);
+      break;
+    case (SRCTERM_CR):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::CRSourceTerms);
+      break;
+    case (CR_VAOPACITY):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::CRVAOpacity);
+      break;
+
 
     default:
       std::stringstream msg;
@@ -791,6 +837,7 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
   BoundaryValues *pbval=pmb->pbval;
+  CosmicRay *pcr=pmb->pcr;
 
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair
@@ -798,7 +845,7 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     pbval->ProlongateBoundaries(phydro->w,  phydro->u,  pfield->b,  pfield->bcc,
-                                t_end_stage, dt);
+                                pcr->u_cr, t_end_stage, dt);
   } else {
     return TASK_FAIL;
   }
@@ -841,6 +888,7 @@ enum TaskStatus TimeIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int sta
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
   BoundaryValues *pbval=pmb->pbval;
+  CosmicRay *pcr=pmb->pcr;
 
   if (stage <= nstages) {
     // Time at the end of stage for (u, b) register pair
@@ -848,7 +896,7 @@ enum TaskStatus TimeIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int sta
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     pbval->ApplyPhysicalBoundaries(phydro->w,  phydro->u,  pfield->b,  pfield->bcc,
-                                   t_end_stage, dt);
+                                   pcr->u_cr, t_end_stage, dt);
   } else {
     return TASK_FAIL;
   }
@@ -942,3 +990,107 @@ enum TaskStatus TimeIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int st
     return TASK_SUCCESS;
   }
 }
+
+// Task functions for Cosmic Rays
+
+enum TaskStatus TimeIntegratorTaskList::CRFluxes(MeshBlock *pmb, int stage)
+{
+  CosmicRay *pcr=pmb->pcr;
+  Hydro *phydro=pmb->phydro;
+
+  if((stage == 1) && (integrator == "vl2")) {
+    // copy cr to cr1
+    pcr->u_cr1 = pcr->u_cr;
+    pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pcr->u_cr, 1);
+    return TASK_NEXT;
+  }
+
+  if((stage == 1) && (integrator == "rk2")) {
+    pcr->u_cr1 = pcr->u_cr;
+    pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pcr->u_cr, 2);
+    return TASK_NEXT;
+  }
+
+  if(stage == 2) {
+    pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w1, pcr->u_cr1, 2);
+    return TASK_NEXT;
+  }
+
+  return TASK_FAIL;
+}
+
+enum TaskStatus TimeIntegratorTaskList::CRIntegrate(MeshBlock *pmb, int stage)
+{
+  CosmicRay *pcr=pmb->pcr;
+  Hydro *ph=pmb->phydro;
+  Field *pfield=pmb->pfield;
+
+  if(stage == 1) {
+    pcr->pcrintegrator->FluxDivergence(pmb, pcr->u_cr, pcr->u_cr, stage_wghts[0],
+                                       pcr->u_cr1, ph->u1,ph->w,pfield->bcc);
+    return TASK_NEXT;
+  }
+
+  if((stage == 2) && (integrator == "vl2")) {
+    pcr->pcrintegrator->FluxDivergence(pmb, pcr->u_cr, pcr->u_cr, stage_wghts[1],
+                                       pcr->u_cr, ph->u, ph->w1, pfield->bcc1);
+    return TASK_NEXT;
+  }
+
+  if((stage == 2) && (integrator == "rk2")) {
+    pcr->pcrintegrator->FluxDivergence(pmb, pcr->u_cr, pcr->u_cr1, stage_wghts[1],
+                                       pcr->u_cr, ph->u, ph->w1, pfield->bcc1);
+    return TASK_NEXT;
+  }
+
+  return TASK_FAIL;
+}
+
+enum TaskStatus TimeIntegratorTaskList::CRSourceTerms(MeshBlock *pmb, int stage)
+{
+  CosmicRay *pcr=pmb->pcr;
+  Hydro *ph=pmb->phydro;
+  Field *pfield=pmb->pfield;
+
+  Real dt = (stage_wghts[(stage-1)].c)*(pmb->pmy_mesh->dt);
+  Real time;
+  // *** this must be changed for the RK3 integrator
+  if(stage == 1) {
+    pcr->pcrintegrator->AddSourceTerms(pmb,dt,ph->u1,ph->w,pfield->bcc,
+                                                           pcr->u_cr1,1);
+  } else if(stage == 2) {
+    if      (integrator == "vl2") time=pmb->pmy_mesh->time + 0.5*pmb->pmy_mesh->dt;
+    else if (integrator == "rk2") time=pmb->pmy_mesh->time +     pmb->pmy_mesh->dt;
+    pcr->pcrintegrator->AddSourceTerms(pmb,dt,ph->u,ph->w1,pfield->bcc1,
+                                                             pcr->u_cr,2);
+  } else {
+    return TASK_FAIL;
+  }
+
+  return TASK_NEXT;
+}
+
+
+enum TaskStatus TimeIntegratorTaskList::CRVAOpacity(MeshBlock *pmb, int stage)
+{
+  CosmicRay *pcr = pmb->pcr;
+  Hydro *phydro=pmb->phydro;
+  Field *pfield=pmb->pfield;
+
+  Real dt = (stage_wghts[(stage-1)].c)*(pmb->pmy_mesh->dt);
+
+  if(stage == 1) {
+    // Need to update the Eddington tensor first to get cosmic ray pressure
+    pcr->UpdateCRTensor(pmb, phydro->w1);
+    pcr->UpdateDiff(pmb, pcr->u_cr1,phydro->w1,pfield->bcc1,dt);
+  } else if(stage == 2) {
+    pcr->UpdateCRTensor(pmb, phydro->w);
+    pcr->UpdateDiff(pmb, pcr->u_cr,phydro->w,pfield->bcc,dt);
+  } else {
+    return TASK_FAIL;
+  }
+
+  return TASK_NEXT;
+
+}
+
