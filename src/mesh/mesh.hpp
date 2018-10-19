@@ -43,6 +43,7 @@ class EquationOfState;
 class FFTDriver;
 class FFTGravityDriver;
 class TurbulenceDriver;
+class Cosmic Ray;
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
@@ -103,6 +104,7 @@ public:
   Field *pfield;
   Gravity *pgrav;
   EquationOfState *peos;
+  CosmicRay *pcr;
 
   MeshBlock *prev, *next;
 

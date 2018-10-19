@@ -59,6 +59,9 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) {
   if (pmb->block_size.nx3>1) ncc3=pmb->block_size.nx3/2+2*pmb->cnghost;
   coarse_cons_.NewAthenaArray(NHYDRO,ncc3,ncc2,ncc1);
   coarse_prim_.NewAthenaArray(NHYDRO,ncc3,ncc2,ncc1);
+  if(CR_ENABLED){
+    coarse_ucr_.NewAthenaArray(NCR,ncc3,ncc2,ncc1);
+  }
 
   int nc1=pmb->block_size.nx1+2*NGHOST;
   fvol_[0][0].NewAthenaArray(nc1);
@@ -98,6 +101,9 @@ MeshRefinement::MeshRefinement(MeshBlock *pmb, ParameterInput *pin) {
 MeshRefinement::~MeshRefinement() {
   coarse_cons_.DeleteAthenaArray();
   coarse_prim_.DeleteAthenaArray();
+  if(CR_ENABLED){
+    coarse_ucr_.DeleteAthenaArray();
+  }
   fvol_[0][0].DeleteAthenaArray();
   fvol_[0][1].DeleteAthenaArray();
   fvol_[1][0].DeleteAthenaArray();
