@@ -10,7 +10,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../mesh/mesh.hpp"
-#include "../cr/cr/hpp"
+#include "../cr/cr.hpp"
 #include "bvals.hpp"
 
 //----------------------------------------------------------------------------------------

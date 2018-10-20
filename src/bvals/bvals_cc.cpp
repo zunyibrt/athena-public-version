@@ -28,7 +28,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
-#include "../cr/cr/hpp"
+#include "../cr/cr.hpp"
 
 // MPI header
 #ifdef MPI_PARALLEL
@@ -173,14 +173,16 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
     int ssize;
     int crssize=0;
     if (nb.level==mylevel){
-      ssize=LoadCellCenteredBoundaryBufferSameLevel(src, ns, ne, pbd->send[nb.bufid], nb);
+      Real *sbuf = pbd->send[nb.bufid];
+      ssize=LoadCellCenteredBoundaryBufferSameLevel(src, ns, ne, sbuf, nb);
       if(CR_ENABLED){
         crssize=LoadCellCenteredBoundaryBufferSameLevel(src_cr, crns, crne,
                                         &(sbuf[ssize]), nb);
       }
     }
     else if (nb.level<mylevel){
-      ssize=LoadCellCenteredBoundaryBufferToCoarser(src, ns, ne, pbd->send[nb.bufid],
+      Real *sbuf = pbd->send[nb.bufid];
+      ssize=LoadCellCenteredBoundaryBufferToCoarser(src, ns, ne, sbuf,
                                                     cbuf, nb);
       if(CR_ENABLED){
         crssize=LoadCellCenteredBoundaryBufferToCoarser(src_cr, crns, crne,
@@ -188,10 +190,12 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
       }
     }
     else{
-      ssize=LoadCellCenteredBoundaryBufferToFiner(src, ns, ne, pbd->send[nb.bufid], nb);
+      Real *sbuf = pbd->send[nb.bufid];
+      ssize=LoadCellCenteredBoundaryBufferToFiner(src, ns, ne, sbuf, nb);
       if(CR_ENABLED){
-        crssize1=LoadCellCenteredBoundaryBufferToFiner(src_cr, crns, crne,
+        crssize=LoadCellCenteredBoundaryBufferToFiner(src_cr, crns, crne,
                                           &(sbuf[ssize]), nb);  
+      }
     }
     if (nb.rank == Globals::my_rank) {
       if (type==HYDRO_CONS || type==HYDRO_PRIM)
@@ -424,6 +428,7 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
   MeshBlock *pmb=pmy_block_;
   bool bflag=true;
   bool *flip=NULL;
+  bool *flip_cr=NULL;
   AthenaArray<Real> cbuf;
   AthenaArray<Real> cbuf_cr;
   int ns, ne;
@@ -439,7 +444,7 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_cons_);
       if (type==HYDRO_PRIM)
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
-      if (CR_ENABLED) {cbuf_cr.InitWithShallowCopy(pmb->pmr->coarse_ucr_);
+      if (CR_ENABLED) {cbuf_cr.InitWithShallowCopy(pmb->pmr->coarse_ucr_);}
     }
   }
 
@@ -450,8 +455,9 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
       if (nb.rank==Globals::my_rank) {// on the same process
         bflag=false;
         continue;
+      }
 #ifdef MPI_PARALLEL
-      } else { // MPI boundary
+      else { // MPI boundary
         int test;
         MPI_Iprobe(MPI_ANY_SOURCE,MPI_ANY_TAG,MPI_COMM_WORLD,&test,MPI_STATUS_IGNORE);
         MPI_Test(&(pbd->req_recv[nb.bufid]),&test,MPI_STATUS_IGNORE);
@@ -461,35 +467,35 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
         }
         pbd->flag[nb.bufid] = BNDRY_ARRIVED;
       }
-#else
-    }
 #endif
     }
     if (nb.level==pmb->loc.level){
       SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
       if(CR_ENABLED){
-        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
       }
     }
     else if (nb.level<pmb->loc.level){ // this set only the prolongation buffer
       SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromCoarser(0, NCR-1, rbuf, cbuf_cr, nb, flip_cr);
+        SetCellCenteredBoundaryFromCoarser(0, NCR-1, pbd->recv[nb.bufid], cbuf_cr, nb, flip_cr);
       }
     }
     else{
       SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
       }
     }
     pbd->flag[nb.bufid] = BNDRY_COMPLETED; // completed
   }
 
   if (bflag && (block_bcs[INNER_X2]==POLAR_BNDRY
-           ||  block_bcs[OUTER_X2]==POLAR_BNDRY))
+           ||  block_bcs[OUTER_X2]==POLAR_BNDRY)){
     PolarSingleCellCentered(dst, ns, ne);
     if(CR_ENABLED){PolarSingleCellCentered(dst_cr, 0, NCR-1);}
+  }
+
   return bflag;
 }
 
@@ -518,7 +524,7 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_cons_);
       if (type==HYDRO_PRIM)
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
-      if (CR_ENABLED){cbuf_cr.InitWithShallowCopy(pmb->pmr->coarse_ucr_);
+      if (CR_ENABLED){cbuf_cr.InitWithShallowCopy(pmb->pmr->coarse_ucr_);}
     }
   }
 
@@ -531,19 +537,19 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
     if (nb.level==pmb->loc.level){
       SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
       if(CR_ENABLED){
-        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
       }
     }
     else if (nb.level<pmb->loc.level){
       SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromCoarser(0, NCR-1, rbuf, cbuf_cr, nb, flip_cr);
+        SetCellCenteredBoundaryFromCoarser(0, NCR-1, pbd->recv[nb.bufid], cbuf_cr, nb, flip_cr);
       }
     }
     else{
       SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
       }
     }
     pbd->flag[nb.bufid] = BNDRY_COMPLETED; // completed

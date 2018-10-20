@@ -225,7 +225,7 @@ public:
       int ns, int ne, Real *buf, AthenaArray<Real> &cbuf, const NeighborBlock& nb);
   int LoadCellCenteredBoundaryBufferToFiner(AthenaArray<Real> &src,
                       int ns, int ne, Real *buf, const NeighborBlock& nb);
-  void SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
+  void SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src, AthenaArray<Real> &src_cr,
                                        enum CCBoundaryType type);
   void SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst, int ns, int ne,
                                   Real *buf, const NeighborBlock& nb, bool *flip);
