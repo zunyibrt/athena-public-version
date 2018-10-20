@@ -10,6 +10,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../mesh/mesh.hpp"
+#include "../cr/cr/hpp"
 #include "bvals.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -19,7 +20,7 @@
 //  \brief polar wedge boundary conditions, inner x2 boundary
 
 void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v2
   for (int n=0; n<(NHYDRO); ++n) {
@@ -70,6 +71,20 @@ void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim
     }}
   }
 
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      Real sign = flip_across_pole_cr[n] ? -1.0 : 1.0;
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(n,k,js-j,i) = sign * u_cr(n,k,js+j-1,i);
+          }
+        }
+      }
+    }
+  }// End CR
+
   return;
 }
 
@@ -80,7 +95,7 @@ void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim
 //  \brief polar wedge boundary conditions, outer x2 boundary
 
 void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v2
   for (int n=0; n<(NHYDRO); ++n) {
@@ -130,6 +145,20 @@ void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim
         b.x3f(k,(je+j  ),i) =  sign * b.x3f(k,(je-j+1),i);
       }
     }}
+  }
+
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      Real sign = flip_across_pole_cr[n] ? -1.0 : 1.0;
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(n,k,(je+j),i) = sign * u_cr(n,k,je-j+1,i);
+          }
+        }
+      }
+    }
   }
 
   return;

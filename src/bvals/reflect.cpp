@@ -10,6 +10,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../mesh/mesh.hpp"
+#include "../cr/cr.hpp"
 #include "bvals.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -19,7 +20,7 @@
 //  \brief REFLECTING boundary conditions, inner x1 boundary
 
 void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v1
   for (int n=0; n<(NHYDRO); ++n) {
@@ -69,6 +70,28 @@ void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }}
   }
 
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      if (n==(CRF1)) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=1; i<=ngh; ++i) {
+            u_cr(CRF1,k,j,is-i) = -u_cr(CRF1,k,j,(is+i-1));  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=1; i<=ngh; ++i) {
+            u_cr(n,k,j,is-i) = u_cr(n,k,j,(is+i-1));
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -79,7 +102,7 @@ void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 //  \brief REFLECTING boundary conditions, outer x1 boundary
 
 void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v1
   for (int n=0; n<(NHYDRO); ++n) {
@@ -129,6 +152,28 @@ void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }}
   }
 
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      if (n==(CRF1)) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+  #pragma omp simd
+          for (int i=1; i<=ngh; ++i) {
+            u_cr(CRF1,k,j,ie+i) = -u_cr(CRF1,k,j,(ie-i+1));  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+  #pragma omp simd
+          for (int i=1; i<=ngh; ++i) {
+            u_cr(n,k,j,ie+i) = u_cr(n,k,j,(ie-i+1));
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -139,7 +184,7 @@ void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 //  \brief REFLECTING boundary conditions, inner x2 boundary
 
 void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v2
   for (int n=0; n<(NHYDRO); ++n) {
@@ -189,6 +234,28 @@ void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }}
   }
 
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      if (n==(CRF2)) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(CRF2,k,js-j,i) = -u_cr(CRF2,k,(js+j-1),i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(n,k,js-j,i) = u_cr(n,k,(js+j-1),i);
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -199,7 +266,7 @@ void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 //  \brief REFLECTING boundary conditions, outer x2 boundary
 
 void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v2
   for (int n=0; n<(NHYDRO); ++n) {
@@ -249,6 +316,28 @@ void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }}
   }
 
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      if (n==(CRF2)) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(CRF2,k,je+j,i) = -u_cr(CRF2,k,(je-j+1),i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=ngh; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(n,k,je+j,i) = u_cr(n,k,(je-j+1),i);
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -259,7 +348,7 @@ void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 //  \brief REFLECTING boundary conditions, inner x3 boundary
 
 void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v3
   for (int n=0; n<(NHYDRO); ++n) {
@@ -309,6 +398,28 @@ void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }}
   }
 
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      if (n==(CRF3)) {
+        for (int k=1; k<=ngh; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(CRF3,ks-k,j,i) = -u_cr(CRF3,ks+k-1,j,i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=1; k<=ngh; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(n,ks-k,j,i) = u_cr(n,ks+k-1,j,i);
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -319,7 +430,7 @@ void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 //  \brief REFLECTING boundary conditions, outer x3 boundary
 
 void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh) {
   // copy hydro variables into ghost zones, reflecting v3
   for (int n=0; n<(NHYDRO); ++n) {
@@ -367,6 +478,28 @@ void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
         b.x3f((ke+k+1),j,i) = -b.x3f((ke-k+1),j,i);  // reflect 3-field
       }
     }}
+  }
+
+  if(CR_ENABLED){
+    for (int n=0; n<(NCR); ++n) {
+      if (n==(CRF3)) {
+        for (int k=1; k<=ngh; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(CRF3,ke+k,j,i) = -u_cr(CRF3,ke-k+1,j,i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=1; k<=ngh; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_cr(n,ke+k,j,i) = u_cr(n,ke-k+1,j,i);
+          }
+        }}
+      }
+    }
   }
 
   return;

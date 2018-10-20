@@ -28,6 +28,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
+#include "../cr/cr/hpp"
 
 // MPI header
 #ifdef MPI_PARALLEL
@@ -136,11 +137,13 @@ int BoundaryValues::LoadCellCenteredBoundaryBufferToFiner(AthenaArray<Real> &src
 //                                                           enum CCBoundaryType type)
 //  \brief Send boundary buffers of cell-centered variables
 void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
-                                                     enum CCBoundaryType type) {
+                          AthenaArray<Real> &src_cr, enum CCBoundaryType type) {
   MeshBlock *pmb=pmy_block_, *pbl;
   int mylevel=pmb->loc.level;
   int ns, ne;
+  int crns, crne;
   AthenaArray<Real> cbuf;
+  AthenaArray<Real> buf_cr;
   BoundaryData *pbd, *ptarget;
 
   if (type==HYDRO_CONS || type==HYDRO_PRIM) {
@@ -158,18 +161,42 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
     NeighborBlock& nb = neighbor[n];
     if (nb.rank == Globals::my_rank) // on the same process
       pbl=pmb->pmy_mesh->FindMeshBlock(nb.gid);
+    
+    if(CR_ENABLED){
+      crns=0, crne=NCR-1;
+      if(nb.level<mylevel) {
+        buf_cr.InitWithShallowCopy(pmb->pmr->coarse_ucr_);
+      }
+
+    }
+    
     int ssize;
-    if (nb.level==mylevel)
+    int crssize=0;
+    if (nb.level==mylevel){
       ssize=LoadCellCenteredBoundaryBufferSameLevel(src, ns, ne, pbd->send[nb.bufid], nb);
-    else if (nb.level<mylevel)
+      if(CR_ENABLED){
+        crssize=LoadCellCenteredBoundaryBufferSameLevel(src_cr, crns, crne,
+                                        &(sbuf[ssize]), nb);
+      }
+    }
+    else if (nb.level<mylevel){
       ssize=LoadCellCenteredBoundaryBufferToCoarser(src, ns, ne, pbd->send[nb.bufid],
                                                     cbuf, nb);
-    else
+      if(CR_ENABLED){
+        crssize=LoadCellCenteredBoundaryBufferToCoarser(src_cr, crns, crne,
+                                  &(sbuf[ssize]), buf_cr, nb);
+      }
+    }
+    else{
       ssize=LoadCellCenteredBoundaryBufferToFiner(src, ns, ne, pbd->send[nb.bufid], nb);
+      if(CR_ENABLED){
+        crssize1=LoadCellCenteredBoundaryBufferToFiner(src_cr, crns, crne,
+                                          &(sbuf[ssize]), nb);  
+    }
     if (nb.rank == Globals::my_rank) {
       if (type==HYDRO_CONS || type==HYDRO_PRIM)
         ptarget=&(pbl->pbval->bd_hydro_);
-      std::memcpy(ptarget->recv[nb.targetid], pbd->send[nb.bufid], ssize*sizeof(Real));
+      std::memcpy(ptarget->recv[nb.targetid], pbd->send[nb.bufid], (ssize+crssize)*sizeof(Real));
       ptarget->flag[nb.targetid]=BNDRY_ARRIVED;
     }
 #ifdef MPI_PARALLEL
@@ -393,11 +420,12 @@ void BoundaryValues::SetCellCenteredBoundaryFromFiner(AthenaArray<Real> &dst,
 //  \brief receive the boundary data
 
 bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
-                                                        enum CCBoundaryType type) {
+                           AthenaArray<Real> &dst_cr, enum CCBoundaryType type) {
   MeshBlock *pmb=pmy_block_;
   bool bflag=true;
   bool *flip=NULL;
   AthenaArray<Real> cbuf;
+  AthenaArray<Real> cbuf_cr;
   int ns, ne;
   BoundaryData *pbd;
 
@@ -405,11 +433,13 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
     pbd=&bd_hydro_;
     ns=0, ne=NHYDRO-1;
     flip=flip_across_pole_hydro;
+    if (CR_ENABLED) {flip_cr = flip_across_pole_cr;}
     if (pmb->pmy_mesh->multilevel) {
       if (type==HYDRO_CONS)
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_cons_);
       if (type==HYDRO_PRIM)
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
+      if (CR_ENABLED) {cbuf_cr.InitWithShallowCopy(pmb->pmr->coarse_ucr_);
     }
   }
 
@@ -435,18 +465,31 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
     }
 #endif
     }
-    if (nb.level==pmb->loc.level)
+    if (nb.level==pmb->loc.level){
       SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
-    else if (nb.level<pmb->loc.level) // this set only the prolongation buffer
+      if(CR_ENABLED){
+        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+      }
+    }
+    else if (nb.level<pmb->loc.level){ // this set only the prolongation buffer
       SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip);
-    else
+      if(CR_ENABLED){
+        SetCellCenteredBoundaryFromCoarser(0, NCR-1, rbuf, cbuf_cr, nb, flip_cr);
+      }
+    }
+    else{
       SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
+      if(CR_ENABLED){
+        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+      }
+    }
     pbd->flag[nb.bufid] = BNDRY_COMPLETED; // completed
   }
 
   if (bflag && (block_bcs[INNER_X2]==POLAR_BNDRY
            ||  block_bcs[OUTER_X2]==POLAR_BNDRY))
-     PolarSingleCellCentered(dst, ns, ne);
+    PolarSingleCellCentered(dst, ns, ne);
+    if(CR_ENABLED){PolarSingleCellCentered(dst_cr, 0, NCR-1);}
   return bflag;
 }
 
@@ -456,11 +499,12 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
 //  \brief receive the boundary data for initialization
 
 void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real> &dst,
-                                                                enum CCBoundaryType
-                                                                type) {
+                                   AthenaArray<Real> &dst_cr, enum CCBoundaryType type) {
   MeshBlock *pmb=pmy_block_;
   bool *flip=NULL;
+  bool *flip_cr=NULL;
   AthenaArray<Real> cbuf;
+  AthenaArray<Real> cbuf_cr;
   int ns, ne;
   BoundaryData *pbd;
 
@@ -468,11 +512,13 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
     pbd=&bd_hydro_;
     ns=0, ne=NHYDRO-1;
     flip=flip_across_pole_hydro;
+    if (CR_ENABLED){ flip_cr = flip_across_pole_cr;}
     if (pmb->pmy_mesh->multilevel) {
       if (type==HYDRO_CONS)
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_cons_);
       if (type==HYDRO_PRIM)
         cbuf.InitWithShallowCopy(pmb->pmr->coarse_prim_);
+      if (CR_ENABLED){cbuf_cr.InitWithShallowCopy(pmb->pmr->coarse_ucr_);
     }
   }
 
@@ -482,16 +528,32 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
     if (nb.rank!=Globals::my_rank)
       MPI_Wait(&(pbd->req_recv[nb.bufid]),MPI_STATUS_IGNORE);
 #endif
-    if (nb.level==pmb->loc.level)
+    if (nb.level==pmb->loc.level){
       SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
-    else if (nb.level<pmb->loc.level)
+      if(CR_ENABLED){
+        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+      }
+    }
+    else if (nb.level<pmb->loc.level){
       SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip);
-    else
+      if(CR_ENABLED){
+        SetCellCenteredBoundaryFromCoarser(0, NCR-1, rbuf, cbuf_cr, nb, flip_cr);
+      }
+    }
+    else{
       SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
+      if(CR_ENABLED){
+        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, rbuf, nb, flip_cr);
+      }
+    }
     pbd->flag[nb.bufid] = BNDRY_COMPLETED; // completed
   }
-  if (block_bcs[INNER_X2]==POLAR_BNDRY || block_bcs[OUTER_X2]==POLAR_BNDRY)
+  if (block_bcs[INNER_X2]==POLAR_BNDRY || block_bcs[OUTER_X2]==POLAR_BNDRY){
     PolarSingleCellCentered(dst, ns, ne);
+    if (CR_ENABLED){
+      PolarSingleCellCentered(dst_cr, 0, NCR-1);
+    }
+  }
 
   return;
 }
