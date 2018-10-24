@@ -27,8 +27,9 @@
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "outputs.hpp"
+#include "../cr/cr.hpp"
 
-#define NHISTORY_VARS ((NHYDRO)+(NFIELD)+3)
+#define NHISTORY_VARS ((NHYDRO)+(NFIELD)+3+(NCR))
 
 //----------------------------------------------------------------------------------------
 // HistoryOutput constructor
@@ -57,6 +58,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   while (pmb != NULL) {
     Hydro *phyd = pmb->phydro;
     Field *pfld = pmb->pfield;
+    CosmicRay *pcr = pmb->pcr;
 
     // Sum history variables over cells.  Note ghost cells are never included in sums
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
@@ -87,6 +89,12 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           data_sum[NHYDRO + 3] += vol(i)*0.5*bcc1*bcc1;
           data_sum[NHYDRO + 4] += vol(i)*0.5*bcc2*bcc2;
           data_sum[NHYDRO + 5] += vol(i)*0.5*bcc3*bcc3;
+        }
+	if (CR_ENABLED){
+          data_sum[NHYDRO + NFIELD + 3] += vol(i)*pcr->u_cr(CRE,k,j,i);
+          data_sum[NHYDRO + NFIELD + 4] += vol(i)*pcr->u_cr(CRF1,k,j,i);
+          data_sum[NHYDRO + NFIELD + 5] += vol(i)*pcr->u_cr(CRF2,k,j,i);
+          data_sum[NHYDRO + NFIELD + 6] += vol(i)*pcr->u_cr(CRF3,k,j,i);
         }
       }
     }}
@@ -142,6 +150,12 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         fprintf(pfile,"[%d]=1-ME    ", iout++);
         fprintf(pfile,"[%d]=2-ME    ", iout++);
         fprintf(pfile,"[%d]=3-ME    ", iout++);
+      }
+      if (CR_ENABLED){
+        fprintf(pfile,"[%d]=Ec    ", iout++);
+        fprintf(pfile,"[%d]=1-Fc    ", iout++);
+        fprintf(pfile,"[%d]=2-Fc    ", iout++);
+        fprintf(pfile,"[%d]=3-Fc    ", iout++);
       }
       for (int n=0; n<pm->nuser_history_output_; n++)
         fprintf(pfile,"[%d]=%-8s", iout++, pm->user_history_output_names_[n].c_str());
