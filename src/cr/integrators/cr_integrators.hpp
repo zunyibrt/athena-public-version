@@ -34,20 +34,18 @@ class CRIntegrator {
     
 
   void AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
-        AthenaArray<Real> &w, AthenaArray<Real> &bcc, 
-        AthenaArray<Real> &u_cr, const int step);
+        AthenaArray<Real> &w, AthenaArray<Real> &u_cr);
 
   void CalculateFluxes(MeshBlock *pmb,
       AthenaArray<Real> &w, AthenaArray<Real> &u_cr, int reconstruct_order);
 
-
-
-
-  void FluxDivergence(MeshBlock *pmb, AthenaArray<Real> &u_cr1,
-                      AthenaArray<Real> &u_cr2, const IntegratorWeight wght,
-                      AthenaArray<Real> &u_out, AthenaArray<Real> &u, 
+  void AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_cr,
+                      AthenaArray<Real> &u, const Real wght,
                       AthenaArray<Real> &w, AthenaArray<Real> &bcc);
 
+  void WeightedAveU(MeshBlock* pmb, AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
+                         AthenaArray<Real> &u_in2, const Real wght[3]);
+  
   void CRFlux(int dir, int k, int j, int il, int iu, AthenaArray<Real> &w_l, 
       AthenaArray<Real> &w_r, AthenaArray<Real> &vel_l, AthenaArray<Real> &vel_r,  
       AthenaArray<Real> &eddl, AthenaArray<Real> &eddr,      

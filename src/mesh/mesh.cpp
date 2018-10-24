@@ -1357,7 +1357,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       pmb->peos->ConservedToPrimitive(phydro->u, phydro->w1, pfield->b,
                                       phydro->w, pfield->bcc, pmb->pcoord,
                                       il, iu, jl, ju, kl, ku);
-      pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc, pcr->u_cr
+      pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc, pcr->u_cr,
                                      time, 0.0);
     }
 
@@ -2064,7 +2064,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 	  if(CR_ENABLED){
             pmr->RestrictCellCenteredValues(pob->pcr->u_cr, pmr->coarse_ucr_,
                  0, NCR-1, pob->cis, pob->cie, pob->cjs, pob->cje,
-                                      pob->cks, pob->cke, HYDRO_CONS);
+                                      pob->cks, pob->cke);
             AthenaArray<Real> &cr_src=pmr->coarse_ucr_;
             AthenaArray<Real> &cr_dst=pmb->pcr->u_cr;
             for(int nv=0; nv<NCR; nv++) {
@@ -2137,7 +2137,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                   cr_dst(nv, k, j, i)=cr_src(nv, ck, cj, ci);
           }}}
           pmr->ProlongateCellCenteredValues(cr_dst, pmb->pcr->u_cr, 0, NCR-1,
-                                  is, ie, js, je, ks, ke, HYDRO_CONS);
+                                  is, ie, js, je, ks, ke);
 
         }// End CR
 

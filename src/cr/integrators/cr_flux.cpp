@@ -100,7 +100,7 @@ void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu,
   
     // Calculate the HLLE flux
     Real tmp = 0.0;
-    if (fabs(bm-bp) > TINY_NUMBER) {tmp = 0.5*(bp + bm)/(bp - bm)};
+    if (fabs(bm-bp) > TINY_NUMBER) {tmp = 0.5*(bp + bm)/(bp - bm);}
     
     flx(CRE,i)  = 0.5*(fl_e  + fr_e)  + (fl_e  - fr_e)  * tmp;
     flx(CRF1,i) = 0.5*(fl_f1 + fr_f1) + (fl_f1 - fr_f1) * tmp;

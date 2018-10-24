@@ -307,11 +307,14 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
   
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn  void CRIntegrator::AddFluxDivergenceToAverage
+//  \brief Adds flux divergence to weighted average of conservative variables from
+//  previous step(s) of time integrator algorithm
 
-void CRIntegrator::FluxDivergence(MeshBlock *pmb, AthenaArray<Real> &u_cr1,
-                      AthenaArray<Real> &u_cr2, const IntegratorWeight wght,
-                      AthenaArray<Real> &u_out, AthenaArray<Real> &u, 
-                      AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
+void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_cr,
+		                              AthenaArray<Real> &u, const Real wght, 
+					      AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
   CosmicRay *pcr=pmb->pcr;
   Coordinates *pco = pmb->pcoord;
 
@@ -326,23 +329,15 @@ void CRIntegrator::FluxDivergence(MeshBlock *pmb, AthenaArray<Real> &u_cr1,
   Real invlim = 1.0/pcr->vmax;
 
   int tid=0;
-  int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
-#pragma omp parallel default(shared) private(tid) num_threads(nthreads)
-{
-#ifdef OPENMP_PARALLEL
-  tid=omp_get_thread_num();
-#endif
   AthenaArray<Real> x1area, x2area, x2area_p1, x3area, x3area_p1, vol, dflx;
-  x1area.InitWithShallowSlice(x1face_area_,2,tid,1);
-  x2area.InitWithShallowSlice(x2face_area_,2,tid,1);
-  x2area_p1.InitWithShallowSlice(x2face_area_p1_,2,tid,1);
-  x3area.InitWithShallowSlice(x3face_area_,2,tid,1);
-  x3area_p1.InitWithShallowSlice(x3face_area_p1_,2,tid,1);
-  vol.InitWithShallowSlice(cell_volume_,2,tid,1);
-  dflx.InitWithShallowSlice(flx_,3,tid,1);
+  x1area.InitWithShallowCopy(x1face_area_);
+  x2area.InitWithShallowCopy(x2face_area_);
+  x2area_p1.InitWithShallowCopy(x2face_area_p1_);
+  x3area.InitWithShallowCopy(x3face_area_);
+  x3area_p1.InitWithShallowCopy(x3face_area_p1_);
+  vol.InitWithShallowCopy(cell_volume_);
+  dflx.InitWithShallowCopy(flx_);
     
-
-#pragma omp for schedule(static)
   for (int k=ks; k<=ke; ++k) { 
     for (int j=js; j<=je; ++j) {
 
@@ -375,24 +370,23 @@ void CRIntegrator::FluxDivergence(MeshBlock *pmb, AthenaArray<Real> &u_cr1,
         for(int n=0; n<NCR; ++n){
 #pragma omp simd
           for(int i=is; i<=ie; ++i){
-
             dflx(n,i) += (x3area_p1(i)*x3flux(n,k+1,j,i) - x3area(i)*x3flux(n,k,j,i));
           }
         }
       }// end nx3
+
       // update variable with flux divergence
       pmb->pcoord->CellVolume(k,j,is,ie,vol);
       for(int n=0; n<NCR; ++n){
 #pragma omp simd
         for(int i=is; i<=ie; ++i){
-          u_out(n,k,j,i) = wght.a*u_cr1(n,k,j,i) + wght.b*u_cr2(n,k,j,i)
-                       - wght.c*dt*dflx(n,i)/vol(i);
+          u_cr(n,k,j,i) -= wght*dt*dflx(n,i)/vol(i);
         }
       }
       // check cosmic ray energy density is always positive
       for(int i=is; i<=ie; ++i){
-        if(u_out(CRE,k,j,i) < TINY_NUMBER)
-          u_out(CRE,k,j,i) = TINY_NUMBER;
+        if(u_cr(CRE,k,j,i) < TINY_NUMBER)
+          u_cr(CRE,k,j,i) = TINY_NUMBER;
       }    
 
      //--------------------------------------------------------------------------------//
@@ -478,7 +472,7 @@ void CRIntegrator::FluxDivergence(MeshBlock *pmb, AthenaArray<Real> &u_cr1,
            if(va > TINY_NUMBER){
               pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(va * (1.0 + 
                                       pcr->prtensor_cr(PC11,k,j,i)) 
-                                        * invlim * u_out(CRE,k,j,i));
+                                        * invlim * u_cr(CRE,k,j,i));
               pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
               pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
            }
@@ -486,14 +480,78 @@ void CRIntegrator::FluxDivergence(MeshBlock *pmb, AthenaArray<Real> &u_cr1,
          }// end mhd
 
          // Add the work term to CRs and gas total energy
-         Real esource = wght.c * dt * v_dot_gradpc;
-         
-	 u_out(CRE,k,j,i) += esource;
+         Real esource = wght * dt * v_dot_gradpc;
+	 u_cr(CRE,k,j,i) += esource;
          u(IEN,k,j,i) -= esource;
 
       }// end i
     }// end j
   }// End k
+}
 
-}// end omp parallel region
+//----------------------------------------------------------------------------------------
+//! \fn  void CRIntegrator::WeightedAveU
+//  \brief Compute weighted average of cell-averaged U in time integrator step
+
+void CRIntegrator::WeightedAveU(MeshBlock* pmb, AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
+                         AthenaArray<Real> &u_in2, const Real wght[3]) {
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+
+  // consider every possible simplified form of weighted sum operator:
+  // U = a*U + b*U1 + c*U2
+  // if c=0, c=b=0, or c=b=a=0 (in that order) to avoid extra FMA operations
+
+  // u_in2 may be an unallocated AthenaArray if using a 2S time integrator
+  if (wght[2] != 0.0) {
+    for (int n=0; n<NCR; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i)
+                + wght[2]*u_in2(n,k,j,i);
+          }
+        }
+      }
+    }
+  } else { // do not dereference u_in2
+    if (wght[1] != 0.0) {
+      for (int n=0; n<NCR; ++n) {
+        for (int k=ks; k<=ke; ++k) {
+          for (int j=js; j<=je; ++j) {
+#pragma omp simd
+            for (int i=is; i<=ie; ++i) {
+              u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i);
+            }
+          }
+        }
+      }
+    } else { // do not dereference u_in1
+      if (wght[0] != 0.0) {
+        for (int n=0; n<NCR; ++n) {
+          for (int k=ks; k<=ke; ++k) {
+            for (int j=js; j<=je; ++j) {
+#pragma omp simd
+              for (int i=is; i<=ie; ++i) {
+                u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i);
+              }
+            }
+          }
+        }
+      } else { // directly initialize u_out to 0
+        for (int n=0; n<NCR; ++n) {
+          for (int k=ks; k<=ke; ++k) {
+            for (int j=js; j<=je; ++j) {
+#pragma omp simd
+              for (int i=is; i<=ie; ++i) {
+                u_out(n,k,j,i) = 0.0;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return;
 }

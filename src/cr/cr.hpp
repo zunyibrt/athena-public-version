@@ -38,7 +38,7 @@ class CosmicRay {
   CosmicRay(MeshBlock *pmb, ParameterInput *pin);
   ~CosmicRay();
     
-  AthenaArray<Real> u_cr, u_cr1; //cosmic ray energy density and flux
+  AthenaArray<Real> u_cr, u_cr1, u_cr2; //cosmic ray energy density and flux
 
   //   diffusion coefficients for both normal diffusion term, and advection term
   AthenaArray<Real> sigma_diff, sigma_adv; 

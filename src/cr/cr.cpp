@@ -220,6 +220,11 @@ CosmicRay::CosmicRay(MeshBlock *pmb, ParameterInput *pin) {
   // Create arrays for cosmic ray energy density and flux
   u_cr.NewAthenaArray(NCR,n3z,n2z,n1z);
   u_cr1.NewAthenaArray(NCR,n3z,n2z,n1z);
+  // If user-requested time integrator is type 3S*, allocate additional memory registers
+  std::string integrator = pin->GetOrAddString("time","integrator","vl2");
+  if (integrator == "ssprk5_4")
+    // future extension may add "int nregister" to Hydro class
+    u_cr2.NewAthenaArray(NCR,n3z,n2z,n1z);
 
   sigma_diff.NewAthenaArray(3,n3z,n2z,n1z);
   sigma_adv.NewAthenaArray(3,n3z,n2z,n1z);
@@ -253,6 +258,8 @@ CosmicRay::CosmicRay(MeshBlock *pmb, ParameterInput *pin) {
 CosmicRay::~CosmicRay() {
   u_cr.DeleteAthenaArray();
   u_cr1.DeleteAthenaArray();
+  u_cr2.DeleteAthenaArray();
+
   sigma_diff.DeleteAthenaArray();
   sigma_adv.DeleteAthenaArray();
   prtensor_cr.DeleteAthenaArray();

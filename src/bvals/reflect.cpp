@@ -15,7 +15,7 @@
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-//                          FaceField &b, const Real time, const Real dt,
+//                          FaceField &b, AthenaArray<Real> &u_cr, const Real time, const Real dt,
 //                          int is, int ie, int js, int je, int ks, int ke, int ngh)
 //  \brief REFLECTING boundary conditions, inner x1 boundary
 

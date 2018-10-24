@@ -30,8 +30,7 @@
 
 // Function for adding the source terms implicitly
 void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
-                                  AthenaArray<Real> &w, AthenaArray<Real> &bcc,
-                                  AthenaArray<Real> &u_cr, const int step) {
+                                  AthenaArray<Real> &w, AthenaArray<Real> &u_cr) {
   CosmicRay *pcr=pmb->pcr;
   
   Real vmax = pcr->vmax;
