@@ -671,7 +671,9 @@ void BoundaryValues::InitBoundaryData(BoundaryData &bd, enum BoundaryType type) 
           size=std::max(size,c2f);
           size=std::max(size,f2c);
         }
-        size*=NHYDRO;
+        int nvar = NHYDRO; // keep spatial information first
+	if(CR_ENABLED) nvar += (NCR);
+	size*= nvar;
       }
       break;
       case BNDRY_FIELD: {
@@ -905,7 +907,10 @@ void BoundaryValues::Initialize(void) {
              *((nb.ox2==0) ? ((pmb->block_size.nx2+1)/2):NGHOST)
              *((nb.ox3==0) ? ((pmb->block_size.nx3+1)/2):NGHOST);
       }
-      ssize*=NHYDRO; rsize*=NHYDRO;
+      int nvar=NHYDRO;
+      if (CR_ENABLED)
+        nvar += (NCR);
+      ssize*=nvar; rsize*=nvar;
       // specify the offsets in the view point of the target block: flip ox? signs
       tag=CreateBvalsMPITag(nb.lid, TAG_HYDRO, nb.targetid);
       if (bd_hydro_.req_send[nb.bufid]!=MPI_REQUEST_NULL)

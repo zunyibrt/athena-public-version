@@ -1833,6 +1833,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           +(bnx1/2+2)*(((bnx2+1)/2)+f2+2*f2)*((bnx3+1)/2+2*f3)
           +(bnx1/2+2)*((bnx2+1)/2+2*f2)*(((bnx3+1)/2)+f3+2*f3);
   }
+  if(CR_ENABLED){
+    bssame += bnx1*bnx2*bnx3*NCR;
+    bsf2c += (bnx1/2)*((bnx2+1)/2)*((bnx3+1)/2)*NCR;
+    bsc2f += (bnx1/2+2)*((bnx2+1)/2+2*f2)*((bnx3+1)/2+2*f3)*NCR;
+  }
   bssame++; // for derefinement counter
 
   MPI_Request *req_send, *req_recv;
@@ -1894,6 +1899,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Pack3DData(pb->pfield->b.x3f, sendbuf[k],
                          pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke+f3, p);
         }
+        if(CR_ENABLED){
+          BufferUtility::Pack4DData(pb->pcr->u_cr, sendbuf[k], 0, NCR-1,
+                         pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
         int *dcp = reinterpret_cast<int *>(&(sendbuf[k][p]));
         *dcp=pb->pmr->deref_count_;
         int tag=CreateAMRMPITag(nn-nslist[newrank[nn]], 0, 0, 0);
@@ -1925,6 +1934,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
             BufferUtility::Pack3DData(pb->pfield->b.x3f, sendbuf[k],
                                       is, ie, js, je, ks, ke+f3, p);
           }
+	  if(CR_ENABLED){
+            BufferUtility::Pack4DData(pb->pcr->u_cr, sendbuf[k], 0, NCR-1,
+                                        is, ie, js, je, ks, ke, p);
+          }
           int tag=CreateAMRMPITag(nn+l-nslist[newrank[nn+l]], 0, 0, 0);
           MPI_Isend(sendbuf[k], bsc2f, MPI_ATHENA_REAL, newrank[nn+l],
                     tag, MPI_COMM_WORLD, &(req_send[k]));
@@ -1954,6 +1967,14 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                                pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke+f3);
           BufferUtility::Pack3DData(pmr->coarse_b_.x3f, sendbuf[k],
                          pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke+f3, p);
+        }
+	if(CR_ENABLED){
+
+          pmr->RestrictCellCenteredValues(pb->pcr->u_cr, pmr->coarse_ucr_, 0, NCR-1,
+          pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, HYDRO_CONS);
+          BufferUtility::Pack4DData(pmr->coarse_ucr_, sendbuf[k], 0, NCR-1,
+             pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
+
         }
         int tag=CreateAMRMPITag(nn-nslist[newrank[nn]], ox1, ox2, ox3);
         MPI_Isend(sendbuf[k], bsf2c, MPI_ATHENA_REAL, newrank[nn],
@@ -2137,7 +2158,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                   cr_dst(nv, k, j, i)=cr_src(nv, ck, cj, ci);
           }}}
           pmr->ProlongateCellCenteredValues(cr_dst, pmb->pcr->u_cr, 0, NCR-1,
-                                  is, ie, js, je, ks, ke);
+                                 pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke); 
 
         }// End CR
 
@@ -2271,7 +2292,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_ucr_,
                                       0, NCR-1, is, ie, js, je, ks, ke, p);
           pmr->ProlongateCellCenteredValues(pmr->coarse_ucr_, pb->pcr->u_cr, 0, NCR-1,
-                                      is, ie, js, je, ks, ke,HYDRO_CONS);
+		                 pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
         }
         k++;
       }
