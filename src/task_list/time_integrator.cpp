@@ -1002,17 +1002,13 @@ enum TaskStatus TimeIntegratorTaskList::CRFluxes(MeshBlock *pmb, int stage)
   Hydro *phydro=pmb->phydro;
 
   if (stage <= nstages) {
-    //std::cout << "CRFluxes Stage : " << stage << std::endl;
-    //std::cout << "CRFluxes Before  : " << pcr->u_cr(CRE,0,0,50) << std::endl;
     // why this specific if statement? not needed if pmb->precon->xorder is set to 1
     if((stage == 1) && (integrator == "vl2")) {
       pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pcr->u_cr, 1);
-      //std::cout << "CRFluxes After : " << pcr->u_cr(CRE,0,0,50) << std::endl;
       return TASK_NEXT;
     } else {
       //Note, should make sure that pcrintegrator can handle order of 3, not True as of now
       pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pcr->u_cr, pmb->precon->xorder);
-      //std::cout << "CRFluxes After : " << pcr->u_cr(CRE,0,0,50) << std::endl;
       return TASK_NEXT;
     }
   }
@@ -1026,8 +1022,6 @@ enum TaskStatus TimeIntegratorTaskList::CRIntegrate(MeshBlock *pmb, int stage)
   Field *pfield=pmb->pfield;
 
   if (stage <= nstages) {
-    //std::cout << "CRIntegrate Stage : " << stage << std::endl;
-    //std::cout << "CRIntegrate Before  : " << pcr->u_cr(CRE,0,0,50) << std::endl;
     // u_cr1 = u_cr1 + delta*u_cr
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
@@ -1044,7 +1038,6 @@ enum TaskStatus TimeIntegratorTaskList::CRIntegrate(MeshBlock *pmb, int stage)
     // u_cr -= beta*dt*flux_density
     pcr->pcrintegrator->AddFluxDivergenceToAverage(pmb, pcr->u_cr, ph->u, stage_wghts[stage-1].beta,
                                                    ph->w, pfield->bcc);
-    //std::cout << "CRIntegrate After : " << pcr->u_cr(CRE,0,0,50) << std::endl;
     return TASK_NEXT;
   }
 
@@ -1058,11 +1051,8 @@ enum TaskStatus TimeIntegratorTaskList::CRSourceTerms(MeshBlock *pmb, int stage)
   Field *pfield=pmb->pfield;
 
   if (stage <= nstages) {
-    //std::cout << "CRSourceTerms Stage : " << stage << std::endl;
-    //std::cout << "CRSourceTerms Before  : " << pcr->u_cr(CRE,0,0,50) << std::endl;
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     pcr->pcrintegrator->AddSourceTerms(pmb,dt,ph->u,ph->w,pcr->u_cr);
-    //std::cout << "CRSourceTerms After : " << pcr->u_cr(CRE,0,0,50) << std::endl;
   } else {
     return TASK_FAIL;
   }
@@ -1077,13 +1067,10 @@ enum TaskStatus TimeIntegratorTaskList::CRVAOpacity(MeshBlock *pmb, int stage)
   Field *pfield=pmb->pfield;
 
   if (stage <= nstages) {
-    //std::cout << "CRVAOpacity Stage : " << stage << std::endl;
-    //std::cout << "CRVAOpacity Before  : " << pcr->u_cr(CRE,0,0,50) << std::endl;
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     // Need to update the Eddington tensor first to get cosmic ray pressure
     pcr->UpdateCRTensor(pmb, phydro->w);
     pcr->UpdateDiff(pmb, pcr->u_cr,phydro->w,pfield->bcc,dt);
-    //std::cout << "CRVAOpacity After : " << pcr->u_cr(CRE,0,0,50) << std::endl;
   } else {
     return TASK_FAIL;
   }

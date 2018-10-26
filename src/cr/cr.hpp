@@ -1,72 +1,70 @@
 #ifndef CR_HPP
 #define CR_HPP
-//======================================================================================
-// Athena++ astrophysical MHD code
-// Copyright (C) 2014 James M. Stone  <jmstone@princeton.edu>
-// See LICENSE file for full public license information.
-//======================================================================================
-//! \file radiation.hpp
-//  \brief definitions for Radiation class
-//======================================================================================
+
+// C++ Header
+#include <string>
 
 // Athena++ classes headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include <string>
 
 // Forward Declarations
 class MeshBlock;
 class ParameterInput;
 class CRIntegrator;
 
-// prototype for user-defined diffusion coefficient
+// Prototype for user-defined diffusion coefficient
 typedef void (*CR_t)(MeshBlock *pmb, AthenaArray<Real> &prim);
 typedef void (*CROpa_t)(MeshBlock *pmb, AthenaArray<Real> &u_cr, 
-                      AthenaArray<Real> &prim, AthenaArray<Real> &bcc, Real dt);
+                        AthenaArray<Real> &prim, AthenaArray<Real> &bcc, 
+			Real dt);
 
-// Array indices for  moments
+// Array indices for moments
 enum {CRE=0, CRF1=1, CRF2=2, CRF3=3};
-// Indices for Pressure Tensor
+// Array indices for Pressure Tensor
 enum {PC11=0, PC22=1, PC33=2, PC12=3, PC13=4, PC23=5};
 
-//! \class CosmicRay
-//  \brief CosmicRay data and functions
+// CosmicRay data structure and methods
 class CosmicRay {
   friend class CRIntegrator;
 
   public:
   CosmicRay(MeshBlock *pmb, ParameterInput *pin);
   ~CosmicRay();
-    
-  AthenaArray<Real> u_cr, u_cr1, u_cr2; //cosmic ray energy density and flux
+  
+  // Arrays storing CR energy densities annd fluxes
+  // Extra arrays are for use during time integration  
+  AthenaArray<Real> u_cr, u_cr1, u_cr2; 
 
-  //   diffusion coefficients for both normal diffusion term, and advection term
+  // Diffusion coefficients for normal diffusion and advection terms
   AthenaArray<Real> sigma_diff, sigma_adv; 
 
-  AthenaArray<Real> prtensor_cr; //   The cosmic ray pressure tensor
+  // Cosmic Ray Pressure Tensor
+  AthenaArray<Real> prtensor_cr;
 
-  AthenaArray<Real> v_adv; // streaming velocity
-  AthenaArray<Real> v_diff; // the diffuion velocity, need to calculate the flux
-    
+  // Streaming and diffusion velocities
+  AthenaArray<Real> v_adv; 
+  AthenaArray<Real> v_diff;   
 
+  // Store the flux during CR Transport, also needed for refinement
+  AthenaArray<Real> flux[3];
 
-  AthenaArray<Real> flux[3]; // store transport flux, also need for refinement
-  
-  Real vmax; // the maximum velocity (effective speed of light)
+  // Velocity limits
+  Real vmax; // Effective speed of light
   Real vlim;
   Real max_opacity;
 
-
-  MeshBlock* pmy_block;    // ptr to MeshBlock containing this Fluid
-  
+  // Pointer to Mesh Block
+  MeshBlock* pmy_block;
+ 
+  // Pointer to Integrator 
   CRIntegrator *pcrintegrator;
   
-  
-  //Function in problem generators to update opacity
+
+  // Enroll a user-defined diffusion function in problem generators 
   void EnrollDiffFunction(CROpa_t MyDiffFunction);
 
-
-  //Function in problem generators to update opacity
+  // Enroll a user-defined CR tensor function 
   void EnrollCRTensorFunction(CR_t MyTensorFunction);
 
   // The function pointer for the diffusion coefficient
@@ -77,6 +75,8 @@ class CosmicRay {
   AthenaArray<Real> cwidth1;
   AthenaArray<Real> cwidth2;
   AthenaArray<Real> b_grad_pc; // array to store B\dot Grad Pc
-  AthenaArray<Real> b_angle; //sin\theta,cos\theta,sin\phi,cos\phi of B direction
+  AthenaArray<Real> b_angle;   // sin(theta),cos(theta),sin(phi),cos(phi) 
+                               // of B direction
 };
+
 #endif 

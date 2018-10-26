@@ -30,7 +30,7 @@ void Field::CT(const Real wght, FaceField &b_out) {
   MeshBlock *pmb=pmy_block;
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-
+  
   AthenaArray<Real> e1,e2,e3;
   e1.InitWithShallowCopy(pmb->pfield->e.x1e);
   e2.InitWithShallowCopy(pmb->pfield->e.x2e);

@@ -1,22 +1,3 @@
-//======================================================================================
-// Athena++ astrophysical MHD code
-// Copyright (C) 2014 James M. Stone  <jmstone@princeton.edu>
-//
-// This program is free software: you can redistribute and/or modify it under the terms
-// of the GNU General Public License (GPL) as published by the Free Software Foundation,
-// either version 3 of the License, or (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful, but WITHOUT ANY
-// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A 
-// PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-//
-// You should have received a copy of GNU GPL in the file LICENSE included in the code
-// distribution.  If not see <http://www.gnu.org/licenses/>.
-//======================================================================================
-//! \file  cr_source.cpp
-//  \brief Add cosmic ray source terms
-//======================================================================================
-
 // Athena++ headers
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
@@ -64,10 +45,8 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
 
         // Rotate the vectors to orientate to the B direction
 	// Pressure is assumed to be Isotropic
-        if (MAGNETIC_FIELDS_ENABLED) {
-          RotateVec(sint_b,cost_b,sinp_b,cosp_b,v1,v2,v3);
-          RotateVec(sint_b,cost_b,sinp_b,cosp_b,fr1,fr2,fr3);
-        }
+        RotateVec(sint_b,cost_b,sinp_b,cosp_b,v1,v2,v3);
+        RotateVec(sint_b,cost_b,sinp_b,cosp_b,fr1,fr2,fr3);
 
 	// Compute Sigmas
         Real sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
@@ -93,9 +72,7 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
         Real newfr3 = (fr3 - rhs3)/(1.0 + dtsigma3) + rhs3;         
 
         // Now apply the invert rotation
-        if (MAGNETIC_FIELDS_ENABLED) {
-          InvRotateVec(sint_b,cost_b,sinp_b,cosp_b,newfr1,newfr2,newfr3);
-        }        
+        InvRotateVec(sint_b,cost_b,sinp_b,cosp_b,newfr1,newfr2,newfr3);
 
         // Update Cosmic Ray quantities
 	u_cr(CRE ,k,j,i) = ec;
@@ -104,9 +81,9 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
         u_cr(CRF3,k,j,i) = newfr3;
 
         // Add source term to gas
-        //u(IM1,k,j,i) += (-(newfr1 - fc1) / vmax);
-        //u(IM2,k,j,i) += (-(newfr2 - fc2) / vmax);
-        //u(IM3,k,j,i) += (-(newfr3 - fc3) / vmax);
+        u(IM1,k,j,i) += (-(newfr1 - fc1) / vmax);
+        u(IM2,k,j,i) += (-(newfr2 - fc2) / vmax);
+        u(IM3,k,j,i) += (-(newfr3 - fc3) / vmax);
         
         // Limit the velocity to vlim*vmax
         Real vx = u(IM1,k,j,i)/u(IDN,k,j,i);
@@ -124,5 +101,4 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
       }// end i
     }// end j
   }// end k
-
 }

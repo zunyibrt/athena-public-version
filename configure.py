@@ -661,4 +661,16 @@ flog.write('  Cosmic Ray Transfer:     ' + ('ON' if args['cr'] else 'OFF')+ '\n'
 flog.write('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF')+ '\n')
 flog.write('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF')+ '\n')
 flog.write('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF')+ '\n')
+flog.write('  Linker flags:            ' + makefile_options['LINKER_FLAGS'] + ' '
+      + makefile_options['LIBRARY_FLAGS'] + '\n')
+flog.write('  Precision:               ' + ('single' if args['float'] else 'double')+ '\n')
+flog.write('  Number of ghost cells:   ' + args['nghost']+ '\n')
+flog.write('  MPI parallelism:         ' + ('ON' if args['mpi'] else 'OFF')+ '\n')
+flog.write('  OpenMP parallelism:      ' + ('ON' if args['omp'] else 'OFF')+ '\n')
+flog.write('  FFT:                     ' + ('ON' if args['fft'] else 'OFF')+ '\n')
+flog.write('  HDF5 output:             ' + ('ON' if args['hdf5'] else 'OFF')+ '\n')
+flog.write('  HDF5 precision:          ' + ('double' if args['h5double'] else 'single')+ '\n')
+flog.write('  Compiler:                ' + args['cxx']+ '\n')
+flog.write('  Compilation command:     ' + makefile_options['COMPILER_COMMAND'] + ' '
+      + makefile_options['PREPROCESSOR_FLAGS'] + ' ' + makefile_options['COMPILER_FLAGS']+ '\n')
 flog.close()

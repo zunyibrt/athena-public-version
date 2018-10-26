@@ -1,15 +1,11 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \file dc.cpp
-//  \brief piecewise constant (donor cell) reconstruction
+// Piecewise constant (donor cell) reconstruction
 
-// Athena++ headers
+// C++ headers
 #include <iostream>   // endl
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
+
+// Athena++ headers
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "../../mesh/mesh.hpp"
@@ -17,76 +13,69 @@
 #include "cr_integrators.hpp"
 #include "../../coordinates/coordinates.hpp"
 
-//----------------------------------------------------------------------------------------
-//! \fn Reconstruction::DonorCellX1()
-//  \brief 
-
-void CRIntegrator::DonorCellX1(const int k, const int j,
-  const int il, const int iu, const AthenaArray<Real> &u_cr,
-  const AthenaArray<Real> &prim, const AthenaArray<Real> &edd,
-  AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
-  AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
-  AthenaArray<Real> &eddl, AthenaArray<Real> &eddr)   
-{
+void CRIntegrator::DonorCellX1(const int k, const int j, 
+		               const int il, const int iu, 
+			       const AthenaArray<Real> &u_cr,
+                               const AthenaArray<Real> &prim, 
+			       const AthenaArray<Real> &edd,
+                               AthenaArray<Real> &w_l, AthenaArray<Real> &w_r,
+                               AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
+                               AthenaArray<Real> &eddl, 
+			       AthenaArray<Real> &eddr) {
 
   for (int n=0; n<NCR; ++n){
-#pragma simd
+#pragma omp simd
     for (int i=il; i<=iu; ++i){
       w_l(n,i) = u_cr(n,k,j,i-1);
-      w_r(n,i) = u_cr(n,k,j,i  );
+      w_r(n,i) = u_cr(n,k,j,i);
     }
   }
-
 
   for (int n=0; n<6; ++n){
-#pragma simd
+#pragma omp simd
     for (int i=il; i<=iu; ++i){
       eddl(n,i) = edd(n,k,j,i-1);
-      eddr(n,i) = edd(n,k,j,i  );
+      eddr(n,i) = edd(n,k,j,i);
     }
   }
 
-#pragma simd
+#pragma omp simd
   for (int i=il; i<=iu; ++i){
     v_l(i) = prim(IVX,k,j,i-1);
     v_r(i) = prim(IVX,k,j,i);
   }
 
-
-
   return;
 }
 
-//----------------------------------------------------------------------------------------
-//! \fn Reconstruction::DonorCellX2()
-//  \brief 
-
 void CRIntegrator::DonorCellX2(const int k, const int j,
-  const int il, const int iu, const AthenaArray<Real> &u_cr,
-  const AthenaArray<Real> &prim, const AthenaArray<Real> &edd, 
-  AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
-  AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
-  AthenaArray<Real> &eddl, AthenaArray<Real> &eddr)
-{
+                               const int il, const int iu, 
+			       const AthenaArray<Real> &u_cr,
+                               const AthenaArray<Real> &prim, 
+			       const AthenaArray<Real> &edd, 
+                               AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
+                               AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
+                               AthenaArray<Real> &eddl, 
+			       AthenaArray<Real> &eddr) {
 
   for (int n=0; n<NCR; ++n){
-#pragma simd
+#pragma omp simd
     for (int i=il; i<=iu; ++i){
       w_l(n,i) = u_cr(n,k,j-1,i);
-      w_r(n,i) = u_cr(n,k,j  ,i);
+      w_r(n,i) = u_cr(n,k,j,i);
     }
   }
 
 
   for (int n=0; n<6; ++n){
-#pragma simd
+#pragma omp simd
     for (int i=il; i<=iu; ++i){
       eddl(n,i) = edd(n,k,j-1,i);
-      eddr(n,i) = edd(n,k,j,i  );
+      eddr(n,i) = edd(n,k,j,i);
     }
   }
 
-#pragma simd
+#pragma omp simd
   for (int i=il; i<=iu; ++i){
     v_l(i) = prim(IVY,k,j-1,i);
     v_r(i) = prim(IVY,k,j,i);
@@ -95,36 +84,33 @@ void CRIntegrator::DonorCellX2(const int k, const int j,
   return;
 }
 
-//----------------------------------------------------------------------------------------
-//! \fn Reconstruction::DonorCellX3()
-//  \brief 
-
 void CRIntegrator::DonorCellX3(const int k, const int j,
-  const int il, const int iu, const AthenaArray<Real> &u_cr,
-  const AthenaArray<Real> &prim, const AthenaArray<Real> &edd, 
-  AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
-  AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
-  AthenaArray<Real> &eddl, AthenaArray<Real> &eddr)
-{
+                               const int il, const int iu, 
+			       const AthenaArray<Real> &u_cr,
+                               const AthenaArray<Real> &prim, 
+			       const AthenaArray<Real> &edd, 
+                               AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
+                               AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
+                               AthenaArray<Real> &eddl, 
+			       AthenaArray<Real> &eddr) {
 
   for (int n=0; n<NCR; ++n){
-#pragma simd
+#pragma omp simd
     for (int i=il; i<=iu; ++i){
       w_l(n,i) = u_cr(n,k-1,j,i);
-      w_r(n,i) = u_cr(n,k,j  ,i);
+      w_r(n,i) = u_cr(n,k,j,i);
     }
   }
-
 
   for (int n=0; n<6; ++n){
-#pragma simd
+#pragma omp simd
     for (int i=il; i<=iu; ++i){
       eddl(n,i) = edd(n,k-1,j,i);
-      eddr(n,i) = edd(n,k,j,i  );
+      eddr(n,i) = edd(n,k,j,i);
     }
   }
 
-#pragma simd
+#pragma omp simd
   for (int i=il; i<=iu; ++i){
     v_l(i) = prim(IVZ,k-1,j,i);
     v_r(i) = prim(IVZ,k,j,i);
@@ -136,59 +122,61 @@ void CRIntegrator::DonorCellX3(const int k, const int j,
 
 
 void CRIntegrator::PieceWiseLinear(const int k, const int j,
-  const int il, const int iu, AthenaArray<Real> &u_cr,
-  AthenaArray<Real> &prim, AthenaArray<Real> &edd,
-  AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
-  AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
-  AthenaArray<Real> &eddl, AthenaArray<Real> &eddr, int dir)
-{
-
+                                   const int il, const int iu, 
+				   AthenaArray<Real> &u_cr, 
+				   AthenaArray<Real> &prim, 
+				   AthenaArray<Real> &edd,
+                                   AthenaArray<Real> &w_l, 
+				   AthenaArray<Real> &w_r, 
+                                   AthenaArray<Real> &v_l, 
+				   AthenaArray<Real> &v_r,
+                                   AthenaArray<Real> &eddl, 
+				   AthenaArray<Real> &eddr, int dir) {
   AthenaArray<Real> q, ql, qr;
 
   for (int n=0; n<NCR; ++n) {
-      q.InitWithShallowSlice(u_cr,4,n,1);
-      ql.InitWithShallowSlice(w_l,2,n,1);
-      qr.InitWithShallowSlice(w_r,2,n,1);
-      switch(dir){
-        case 0:
-          GetOneVariableX1(k,j,il,iu,q,ql,qr);
-          break;
-        case 1:
-          GetOneVariableX2(k,j,il,iu,q,ql,qr);
-          break;
-        case 2:
-          GetOneVariableX3(k,j,il,iu,q,ql,qr);
-          break;
-        default:
-          std::stringstream msg;
-          msg << "### FATAL ERROR in CR constructor" << std::endl
-          << "Direction=" << dir << " not valid" << std::endl;
-          throw std::runtime_error(msg.str().c_str());
-      }              
+    q.InitWithShallowSlice(u_cr,4,n,1);
+    ql.InitWithShallowSlice(w_l,2,n,1);
+    qr.InitWithShallowSlice(w_r,2,n,1);
+    switch(dir){
+      case 0:
+        GetOneVariableX1(k,j,il,iu,q,ql,qr);
+        break;
+      case 1:
+        GetOneVariableX2(k,j,il,iu,q,ql,qr);
+        break;
+      case 2:
+        GetOneVariableX3(k,j,il,iu,q,ql,qr);
+        break;
+      default:
+        std::stringstream msg;
+        msg << "### FATAL ERROR in CR constructor" << std::endl
+        << "Direction=" << dir << " not valid" << std::endl;
+        throw std::runtime_error(msg.str().c_str());
+    }              
   }
-  
   
   // Eddington tensor
   for (int n=0; n<6; ++n) {
-      q.InitWithShallowSlice(edd,4,n,1);
-      ql.InitWithShallowSlice(eddl,2,n,1);
-      qr.InitWithShallowSlice(eddr,2,n,1);
-      switch(dir){
-        case 0:
-          GetOneVariableX1(k,j,il,iu,q,ql,qr);
-          break;
-        case 1:
-          GetOneVariableX2(k,j,il,iu,q,ql,qr);
-          break;
-        case 2:
-          GetOneVariableX3(k,j,il,iu,q,ql,qr);
-          break;
-        default:
-          std::stringstream msg;
-          msg << "### FATAL ERROR in CR constructor" << std::endl
-          << "Direction=" << dir << " not valid" << std::endl;
-          throw std::runtime_error(msg.str().c_str());
-      }              
+    q.InitWithShallowSlice(edd,4,n,1);
+    ql.InitWithShallowSlice(eddl,2,n,1);
+    qr.InitWithShallowSlice(eddr,2,n,1);
+    switch(dir){
+      case 0:
+        GetOneVariableX1(k,j,il,iu,q,ql,qr);
+        break;
+      case 1:
+        GetOneVariableX2(k,j,il,iu,q,ql,qr);
+        break;
+      case 2:
+        GetOneVariableX3(k,j,il,iu,q,ql,qr);
+        break;
+      default:
+        std::stringstream msg;
+        msg << "### FATAL ERROR in CR constructor" << std::endl
+        << "Direction=" << dir << " not valid" << std::endl;
+        throw std::runtime_error(msg.str().c_str());
+    }              
   }  
 
   // velocity
@@ -199,8 +187,6 @@ void CRIntegrator::PieceWiseLinear(const int k, const int j,
     throw std::runtime_error(msg.str().c_str());
   }
   
-
-
   q.InitWithShallowSlice(prim,4,dir+IVX,1);
 
   // add the advection component
@@ -212,21 +198,19 @@ void CRIntegrator::PieceWiseLinear(const int k, const int j,
     GetOneVariableX3(k,j,il,iu,q,v_l,v_r);
   }
 
-
   return;
 }
-  
 
 void CRIntegrator::GetOneVariableX1(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
-      AthenaArray<Real> &ql, AthenaArray<Real> &qr)
-{
-
-
+                                    const int il, const int iu, 
+				    const AthenaArray<Real> &q, 
+                                    AthenaArray<Real> &ql, 
+				    AthenaArray<Real> &qr) {
+  
   Coordinates *pco = pmy_cr->pmy_block->pcoord;
   Real dql,dqr,dqc,q_im1,q_i;
 
-#pragma simd
+#pragma omp simd
   for (int i=il; i<=iu; ++i){
     Real& dx_im2 = pco->dx1v(i-2);
     Real& dx_im1 = pco->dx1v(i-1);
@@ -260,10 +244,10 @@ void CRIntegrator::GetOneVariableX1(const int k, const int j,
 }
 
 void CRIntegrator::GetOneVariableX2(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
-      AthenaArray<Real> &ql, AthenaArray<Real> &qr)
-{
-
+                                    const int il, const int iu, 
+				    const AthenaArray<Real> &q, 
+                                    AthenaArray<Real> &ql, 
+				    AthenaArray<Real> &qr) {
 
   Coordinates *pco = pmy_cr->pmy_block->pcoord;
   Real dx2jm2i = 1.0/pco->dx2v(j-2);
@@ -277,7 +261,7 @@ void CRIntegrator::GetOneVariableX2(const int k, const int j,
   Real cbp=pco->dx2v(j-1)/dxfl;
   Real dql,dqr,dqc,q_jm1,q_j;
 
-#pragma simd
+#pragma omp simd
   for (int i=il; i<=iu; ++i){
     q_jm1 = q(k,j-1,i);
     q_j   = q(k,j  ,i);
@@ -301,10 +285,10 @@ void CRIntegrator::GetOneVariableX2(const int k, const int j,
 }
 
 void CRIntegrator::GetOneVariableX3(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
-      AthenaArray<Real> &ql, AthenaArray<Real> &qr)
-{
-
+                                    const int il, const int iu, 
+				    const AthenaArray<Real> &q, 
+                                    AthenaArray<Real> &ql, 
+				    AthenaArray<Real> &qr) {
 
   Coordinates *pco = pmy_cr->pmy_block->pcoord;
   Real dx3km2i = 1.0/pco->dx3v(k-2);
@@ -318,7 +302,7 @@ void CRIntegrator::GetOneVariableX3(const int k, const int j,
   Real cbp=pco->dx3v(k-1)/dxfl;
   Real dql,dqr,dqc,q_km1,q_k;
 
-#pragma simd
+#pragma omp simd
   for (int i=il; i<=iu; ++i){
     q_km1 = q(k-1,j,i);
     q_k   = q(k  ,j,i);
@@ -339,8 +323,3 @@ void CRIntegrator::GetOneVariableX3(const int k, const int j,
       qr(i) -= dxfl*dq2*(cfp*dqc+cbp*dqr)/(dqc*dqc+(cfp+cbp-2.0)*dq2+dqr*dqr);
   }
 }
-
-
-
-
-

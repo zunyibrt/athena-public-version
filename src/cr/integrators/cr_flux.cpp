@@ -1,15 +1,9 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \fn Reconstruction::CRFlux()
-//  \brief HLLE flux for Cosmic Ray Transport
-
-// Athena++ headers
+// C++ headers
 #include <iostream>   // endl
 #include <sstream>    // stringstream
 #include <stdexcept>  // runtime_error
+
+// Athena++ headers
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "../../mesh/mesh.hpp"
@@ -17,13 +11,13 @@
 #include "cr_integrators.hpp"
 #include "../../coordinates/coordinates.hpp"
 
+// HLLE Flux for CR Transport
 void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu, 
-      AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
-      AthenaArray<Real> &vl, AthenaArray<Real> &vr, 
-      AthenaArray<Real> &eddl, AthenaArray<Real> &eddr,
-      AthenaArray<Real> &vdiff_l, AthenaArray<Real> &vdiff_r, 
-      AthenaArray<Real> &flx) {
-
+                          AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
+                          AthenaArray<Real> &vl, AthenaArray<Real> &vr, 
+                          AthenaArray<Real> &eddl, AthenaArray<Real> &eddr,
+                          AthenaArray<Real> &vdiff_l, AthenaArray<Real> &vdiff_r, 
+                          AthenaArray<Real> &flx) {
   // First, get the photon diffusion speed
   Real vmax = pmy_cr->vmax;
   Real *pedd_l, *pedd_r;
@@ -40,10 +34,8 @@ void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu,
   }
 
   // use sigma_l, sigma_r to get diffusion speed
-
-#pragma simd
+#pragma omp simd
   for (int i=il; i<=iu; ++i){
-
     Real meanadv=0.5*(vl(i) + vr(i));
     Real meandiffv = 0.5*(vdiff_l(i)+vdiff_r(i));
 
@@ -51,7 +43,6 @@ void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu,
     Real ar = std::max((meanadv + meandiffv),(vr(i)+vdiff_r(i)));
     ar = std::min(ar,vmax * sqrt(pedd_r[i]));
     al = std::max(al,-vmax * sqrt(pedd_l[i]));
-
 
     Real bp = ar > 0.0 ? ar : 0.0;
     Real bm = al < 0.0 ? al : 0.0;
@@ -65,7 +56,6 @@ void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu,
     Real fl_f1, fr_f1, fl_f2, fr_f2, fl_f3, fr_f3;
     
     if(fdir == CRF1){
-
       fl_f1 = vmax * eddl(PC11,i) * w_l(CRE,i) - bm * w_l(CRF1,i);
       fr_f1 = vmax * eddr(PC11,i) * w_r(CRE,i) - bp * w_r(CRF1,i);
 
@@ -75,7 +65,6 @@ void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu,
       fl_f3 = vmax * eddl(PC13,i) * w_l(CRE,i) - bm * w_l(CRF3,i);
       fr_f3 = vmax * eddr(PC13,i) * w_r(CRE,i) - bp * w_r(CRF3,i);
     } else if(fdir == CRF2){
- 
       fl_f1 = vmax * eddl(PC12,i) * w_l(CRE,i) - bm * w_l(CRF1,i);
       fr_f1 = vmax * eddr(PC12,i) * w_r(CRE,i) - bp * w_r(CRF1,i);
 
@@ -86,7 +75,6 @@ void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu,
       fr_f3 = vmax * eddr(PC23,i) * w_r(CRE,i) - bp * w_r(CRF3,i);
 
     }else if(fdir == CRF3){
-
       fl_f1 = vmax * eddl(PC13,i) * w_l(CRE,i) - bm * w_l(CRF1,i);
       fr_f1 = vmax * eddr(PC13,i) * w_r(CRE,i) - bp * w_r(CRF1,i);
 
@@ -109,5 +97,3 @@ void CRIntegrator::CRFlux(int fdir, int k, int j, int il, int iu,
 
   } // end i
 }
-
-

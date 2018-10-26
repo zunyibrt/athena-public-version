@@ -1,22 +1,15 @@
-//======================================================================================
-// Athena++ astrophysical MHD code
-// Copyright (C) 2014 James M. Stone  <jmstone@princeton.edu>
-//
-// This program is free software: you can redistribute and/or modify it under the terms
-// of the GNU General Public License (GPL) as published by the Free Software Foundation,
-// either version 3 of the License, or (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful, but WITHOUT ANY
-// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A 
-// PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-//
-// You should have received a copy of GNU GPL in the file LICENSE included in the code
-// distribution.  If not see <http://www.gnu.org/licenses/>.
-//======================================================================================
-//! \file rad_transport.cpp
-//  \brief implementation of radiation integrators
-//======================================================================================
+// C++ headers
+#include <algorithm>
 
+// MPI/OpenMP header
+#ifdef MPI_PARALLEL
+#include <mpi.h>
+#endif
+
+// OpenMP header
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
 
 // Athena++ headers
 #include "../../athena.hpp"
@@ -24,32 +17,16 @@
 #include "../../parameter_input.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../cr.hpp"
-#include "../../coordinates/coordinates.hpp" //
-#include <algorithm>   // min,max
-
-// class header
+#include "../../coordinates/coordinates.hpp"
 #include "cr_integrators.hpp"
 
-// MPI/OpenMP header
-#ifdef MPI_PARALLEL
-#include <mpi.h>
-#endif
-
-
-// OpenMP header
-#ifdef OPENMP_PARALLEL
-#include <omp.h>
-#endif
-
-
-void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
-      AthenaArray<Real> &w, AthenaArray<Real> &u_cr, int reconstruct_order)
-{
+void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w, 
+		                   AthenaArray<Real> &u_cr, 
+				   int reconstruct_order) {
   CosmicRay *pcr=pmy_cr;
   Coordinates *pco = pmb->pcoord;
   
   Real invvmax=1.0/pcr->vmax;
-  
   
   AthenaArray<Real> &x1flux=pcr->flux[X1DIR];
   AthenaArray<Real> &x2flux=pcr->flux[X2DIR];
@@ -64,254 +41,221 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
   int n3 = pmb->block_size.nx3;
   if(pmb->block_size.nx2 > 1) n2 += 2*NGHOST;
   if(pmb->block_size.nx3 > 1) n3 += 2*NGHOST;  
-  
 
-  int tid=0;
-  int nthreads = pmb->pmy_mesh->GetNumMeshThreads();
-#pragma omp parallel default(shared) private(tid) num_threads(nthreads)
-{
-#ifdef OPENMP_PARALLEL
-    tid=omp_get_thread_num();
-#endif
-
-    AthenaArray<Real> flx, vel_l, vel_r, wl, wr, vdiff_l, vdiff_r, eddl, eddr;
-    AthenaArray<Real> cwidth;
-    flx.InitWithShallowSlice(flx_,3,tid,1);
-    vel_l.InitWithShallowSlice(vel_l_,2,tid,1);
-    vel_r.InitWithShallowSlice(vel_r_,2,tid,1);
-    vdiff_l.InitWithShallowSlice(vdiff_l_,2,tid,1);
-    vdiff_r.InitWithShallowSlice(vdiff_r_,2,tid,1);
-    eddl.InitWithShallowSlice(eddl_,3,tid,1);
-    eddr.InitWithShallowSlice(eddr_,3,tid,1);
-    wl.InitWithShallowSlice(wl_,3,tid,1);
-    wr.InitWithShallowSlice(wr_,3,tid,1);
-    cwidth.InitWithShallowSlice(cwidth_,2,tid,1);
+  AthenaArray<Real> flx, vel_l, vel_r, wl, wr, vdiff_l, vdiff_r, eddl, eddr;
+  AthenaArray<Real> cwidth;
+  flx.InitWithShallowCopy(flx_);
+  vel_l.InitWithShallowCopy(vel_l_);
+  vel_r.InitWithShallowCopy(vel_r_);
+  vdiff_l.InitWithShallowCopy(vdiff_l_);
+  vdiff_r.InitWithShallowCopy(vdiff_r_);
+  eddl.InitWithShallowCopy(eddl_);
+  eddr.InitWithShallowCopy(eddr_);
+  wl.InitWithShallowCopy(wl_);
+  wr.InitWithShallowCopy(wr_);
+  cwidth.InitWithShallowCopy(cwidth_);
 
 
 //--------------------------------------------------------------------------------------
-    // First, calculate the diffusion velocity along three coordinate system
-    for (int k=0; k<n3; ++k){
-      for(int j=0; j<n2; ++j){
+  // First, calculate the diffusion velocity along three coordinate system
+  for (int k=0; k<n3; ++k){
+    for(int j=0; j<n2; ++j){
 
-        // diffusion velocity along the direction of sigma vector
-        // We first assume B is along x coordinate
-        // Then rotate according to B direction to the actual acooridnate
+      // diffusion velocity along the direction of sigma vector
+      // We first assume B is along x coordinate
+      // Then rotate according to B direction to the actual acooridnate
 
-        for(int i=0; i<n1; ++i){
-          Real eddxx=pcr->prtensor_cr(PC11,k,j,i);
-          Real totsigma = 1.0/(1.0/pcr->sigma_diff(0,k,j,i) 
-                             + 1.0/pcr->sigma_adv(0,k,j,i));
-          Real taux = taufact_ * totsigma * pco->dx1f(i);
-          taux = taux * taux/(2.0 * eddxx);
-          Real diffv = sqrt((1.0 - exp(-taux)) / taux);
+      for(int i=0; i<n1; ++i){
+        Real eddxx=pcr->prtensor_cr(PC11,k,j,i);
+        Real totsigma = 1.0/(1.0/pcr->sigma_diff(0,k,j,i) 
+                           + 1.0/pcr->sigma_adv(0,k,j,i));
+        Real taux = taufact_ * totsigma * pco->dx1f(i);
+        taux = taux * taux/(2.0 * eddxx);
+        Real diffv = sqrt((1.0 - exp(-taux)) / taux);
 
-          if(taux < 1.e-3)
-            diffv = sqrt((1.0 - 0.5* taux));
+	if(taux < 1.e-3)
+          diffv = sqrt((1.0 - 0.5* taux));
 
-          pcr->v_diff(0,k,j,i) = pcr->vmax * sqrt(eddxx) * diffv;
-        }
+        pcr->v_diff(0,k,j,i) = pcr->vmax * sqrt(eddxx) * diffv;
+      }
 
-        // y direction
-        pco->CenterWidth2(k,j,0,n1-1,cwidth);
-          // get the optical depth across the cell
-        for(int i=0; i<n1; ++i){
-          Real eddyy=pcr->prtensor_cr(PC22,k,j,i);
-          Real totsigma = 1.0/(1.0/pcr->sigma_diff(1,k,j,i) 
-                             + 1.0/pcr->sigma_adv(1,k,j,i));
-          Real tauy = taufact_ * totsigma * cwidth(i);
-          tauy = tauy * tauy/(2.0 * eddyy);
-          Real diffv = sqrt((1.0 - exp(-tauy)) / tauy);
+      // y direction
+      pco->CenterWidth2(k,j,0,n1-1,cwidth);
+      // get the optical depth across the cell
+      for(int i=0; i<n1; ++i){
+        Real eddyy=pcr->prtensor_cr(PC22,k,j,i);
+        Real totsigma = 1.0/(1.0/pcr->sigma_diff(1,k,j,i) 
+                           + 1.0/pcr->sigma_adv(1,k,j,i));
+        Real tauy = taufact_ * totsigma * cwidth(i);
+        tauy = tauy * tauy/(2.0 * eddyy);
+        Real diffv = sqrt((1.0 - exp(-tauy)) / tauy);
 
-          if(tauy < 1.e-3)
-            diffv = sqrt((1.0 - 0.5* tauy));
+        if(tauy < 1.e-3)
+          diffv = sqrt((1.0 - 0.5* tauy));
 
-          pcr->v_diff(1,k,j,i) = pcr->vmax * sqrt(eddyy) * diffv;            
-        }// end i
-        // z direction
-        pco->CenterWidth3(k,j,0,n1-1,cwidth);
-          // get the optical depth across the cell
-        for(int i=0; i<n1; ++i){
-          Real eddzz=pcr->prtensor_cr(PC33,k,j,i);
-          Real totsigma = 1.0/(1.0/pcr->sigma_diff(2,k,j,i) 
-                             + 1.0/pcr->sigma_adv(2,k,j,i));
-          Real tauz = taufact_ * totsigma * cwidth(i);
-          tauz = tauz * tauz/(2.0 * eddzz);
-          Real diffv = sqrt((1.0 - exp(-tauz)) / tauz);
+        pcr->v_diff(1,k,j,i) = pcr->vmax * sqrt(eddyy) * diffv;            
+      }// end i
+      // z direction
+      pco->CenterWidth3(k,j,0,n1-1,cwidth);
+      // get the optical depth across the cell
+      for(int i=0; i<n1; ++i){
+        Real eddzz=pcr->prtensor_cr(PC33,k,j,i);
+        Real totsigma = 1.0/(1.0/pcr->sigma_diff(2,k,j,i) 
+                           + 1.0/pcr->sigma_adv(2,k,j,i));
+        Real tauz = taufact_ * totsigma * cwidth(i);
+        tauz = tauz * tauz/(2.0 * eddzz);
+        Real diffv = sqrt((1.0 - exp(-tauz)) / tauz);
 
-          if(tauz < 1.e-3)
-            diffv = sqrt((1.0 - 0.5* tauz));
+        if(tauz < 1.e-3)
+          diffv = sqrt((1.0 - 0.5* tauz));
 
-          pcr->v_diff(2,k,j,i) = pcr->vmax * sqrt(eddzz) * diffv;            
-        }
+        pcr->v_diff(2,k,j,i) = pcr->vmax * sqrt(eddzz) * diffv;            
+      }
 
-        //rotate the v_diff vector to the local coordinate
-        if(MAGNETIC_FIELDS_ENABLED){
-          for(int i=0; i<n1; ++i){
-            
+      // rotate the v_diff vector to the local coordinate
+      for(int i=0; i<n1; ++i){
+        InvRotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
+                     pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i), 
+                     pcr->v_diff(0,k,j,i),pcr->v_diff(1,k,j,i),
+                     pcr->v_diff(2,k,j,i));
+        
+	// take the absolute value
+        // Also add the Alfven velocity for the streaming flux
+        pcr->v_diff(0,k,j,i) = fabs(pcr->v_diff(0,k,j,i));
+        pcr->v_diff(1,k,j,i) = fabs(pcr->v_diff(1,k,j,i));                          
+        pcr->v_diff(2,k,j,i) = fabs(pcr->v_diff(2,k,j,i));
+      }
+      
+      // need to add additional sound speed for stability
+      for(int i=0; i<n1; ++i){
+         Real cr_sound_x = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC11,k,j,i) 
+                                  * u_cr(k,j,i)/w(IDN,k,j,i)); 
 
-            InvRotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
-                        pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i), 
-                          pcr->v_diff(0,k,j,i),pcr->v_diff(1,k,j,i),
-                                              pcr->v_diff(2,k,j,i));
-            // take the absolute value
-            // Also add the Alfven velocity for the streaming flux
-            pcr->v_diff(0,k,j,i) = fabs(pcr->v_diff(0,k,j,i));
+	 pcr->v_diff(0,k,j,i) += cr_sound_x;
 
-            pcr->v_diff(1,k,j,i) = fabs(pcr->v_diff(1,k,j,i));
-                                   
-            pcr->v_diff(2,k,j,i) = fabs(pcr->v_diff(2,k,j,i));
+         Real cr_sound_y = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC22,k,j,i) 
+                                  * u_cr(k,j,i)/w(IDN,k,j,i));
 
-          }
+         pcr->v_diff(1,k,j,i) += cr_sound_y;
 
-        }
-        // need to add additional sound speed for stability
-        for(int i=0; i<n1; ++i){
-           Real cr_sound_x = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC11,k,j,i) 
-                                    * u_cr(k,j,i)/w(IDN,k,j,i)); 
-
-           pcr->v_diff(0,k,j,i) += cr_sound_x;
-
-           Real cr_sound_y = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC22,k,j,i) 
-                                    * u_cr(k,j,i)/w(IDN,k,j,i));
-
-           pcr->v_diff(1,k,j,i) += cr_sound_y;
-
-           Real cr_sound_z = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC33,k,j,i) 
-                                    * u_cr(k,j,i)/w(IDN,k,j,i)); 
+         Real cr_sound_z = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC33,k,j,i) 
+                                  * u_cr(k,j,i)/w(IDN,k,j,i)); 
            
-           pcr->v_diff(2,k,j,i) += cr_sound_z;
-
-        }
-
-
+         pcr->v_diff(2,k,j,i) += cr_sound_z;
       }
     }
+  }
      
-//--------------------------------------------------------------------------------------
-// i-direction
-    // set the loop limits
-    jl=js, ju=je, kl=ks, ku=ke;
-    for (int k=kl; k<=ku; ++k){
-#pragma omp for schedule(static)
-      for (int j=jl; j<=ju; ++j){
-        // First, need to do reconstruction
-        // to reconstruct Ec, Fc, vel, v_a and 
-        // return Ec,Fc and signal speed at left and right state
-        if(reconstruct_order == 1){
-          DonorCellX1(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                        vel_l,vel_r, eddl, eddr);
-        }else {
-          PieceWiseLinear(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                     vel_l, vel_r, eddl, eddr, 0);
-        }
-        // get the optical depth across the cell
+  //--------------------------------------------------------------------------------------
+  // i-direction
+  // set the loop limits
+  jl=js, ju=je, kl=ks, ku=ke;
+  for (int k=kl; k<=ku; ++k){
+    for (int j=jl; j<=ju; ++j){
+      // First, need to do reconstruction
+      // to reconstruct Ec, Fc, vel, v_a and 
+      // return Ec,Fc and signal speed at left and right state
+      if(reconstruct_order == 1){
+        DonorCellX1(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,wl,wr,
+                                      vel_l,vel_r, eddl, eddr);
+      }else {
+        PieceWiseLinear(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,wl,wr,
+                                   vel_l, vel_r, eddl, eddr, 0);
+      }
+      // get the optical depth across the cell
+#pragma omp simd
+      for(int i=is; i<=ie+1; ++i){
+        vdiff_l(i) = pcr->v_diff(0,k,j,i-1);
+        vdiff_r(i) = pcr->v_diff(0,k,j,i);
+      }
+
+      // calculate the flux
+      CRFlux(CRF1, k, j, is, ie+1, wl, wr, vel_l, vel_r, eddl, eddr,  
+                                             vdiff_l, vdiff_r, flx);
+      // store the flux
+      for(int n=0; n<NCR; ++n){
 #pragma omp simd
         for(int i=is; i<=ie+1; ++i){
-          vdiff_l(i) = pcr->v_diff(0,k,j,i-1);
-          vdiff_r(i) = pcr->v_diff(0,k,j,i);
+          x1flux(n,k,j,i) = flx(n,i);
+        }
+      }
+    }
+  }
+    
+  // j-direction
+  if(pmb->block_size.nx2 > 1){
+    il=is; iu=ie; kl=ks; ku=ke;
+    for (int k=kl; k<=ku; ++k){
+      for (int j=js; j<=je+1; ++j){
+
+        if(reconstruct_order == 1){
+          DonorCellX2(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
+                                   vel_l,vel_r, eddl, eddr);
+        }else {
+          PieceWiseLinear(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
+                                   vel_l, vel_r, eddl, eddr, 1);
+        }
+
+        // get the optical depth across the cell
+#pragma omp simd
+        for(int i=il; i<=iu; ++i){
+          vdiff_l(i) = pcr->v_diff(1,k,j-1,i);
+          vdiff_r(i) = pcr->v_diff(1,k,j,i);
         }
 
         // calculate the flux
-        CRFlux(CRF1, k, j, is, ie+1, wl, wr, vel_l, vel_r, eddl, eddr,  
-                                               vdiff_l, vdiff_r, flx);
-        // store the flux
-        for(int n=0; n<NCR; ++n){
-#pragma omp simd
-          for(int i=is; i<=ie+1; ++i){
-            x1flux(n,k,j,i) = flx(n,i);
-          }
-        }
-
-      }
-    }
-    
-// j-direction
-    if(pmb->block_size.nx2 > 1){
-      il=is; iu=ie; kl=ks; ku=ke;
-      for (int k=kl; k<=ku; ++k){
-#pragma omp for schedule(static)
-        for (int j=js; j<=je+1; ++j){
-
-          if(reconstruct_order == 1){
-            DonorCellX2(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                     vel_l,vel_r, eddl, eddr);
-          }else {
-            PieceWiseLinear(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                     vel_l, vel_r, eddl, eddr, 1);
-          }
-
-          // get the optical depth across the cell
-#pragma omp simd
-          for(int i=il; i<=iu; ++i){
-            vdiff_l(i) = pcr->v_diff(1,k,j-1,i);
-            vdiff_r(i) = pcr->v_diff(1,k,j,i);
-          }
-
-         // calculate the flux
-          CRFlux(CRF2, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr, 
+        CRFlux(CRF2, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr, 
                                                 vdiff_l, vdiff_r, flx);
         
         // store the flux
-          for(int n=0; n<NCR; ++n){
+        for(int n=0; n<NCR; ++n){
 #pragma omp simd
-            for(int i=is; i<=ie; ++i){
-              x2flux(n,k,j,i) = flx(n,i);
-            }
+          for(int i=is; i<=ie; ++i){
+            x2flux(n,k,j,i) = flx(n,i);
           }
-
         }
       }
-    }// finish j direction
+    }
+  }// finish j direction
 
-//  k-direction
-    if(pmb->block_size.nx3 > 1){
-      il=is; iu=ie; jl=js; ju=je;
-      for (int k=ks; k<=ke+1; ++k){
-#pragma omp for schedule(static)
-        for (int j=jl; j<=ju; ++j){
+  // k-direction
+  if(pmb->block_size.nx3 > 1){
+    il=is; iu=ie; jl=js; ju=je;
+    for (int k=ks; k<=ke+1; ++k){
+      for (int j=jl; j<=ju; ++j){
+        if(reconstruct_order == 1){
+          DonorCellX3(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
+                                      vel_l,vel_r, eddl, eddr);
+        }else {
+          PieceWiseLinear(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
+                                     vel_l, vel_r, eddl, eddr, 2);
+        }
 
-          if(reconstruct_order == 1){
-            DonorCellX3(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                        vel_l,vel_r, eddl, eddr);
-          }else {
-            PieceWiseLinear(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                       vel_l, vel_r, eddl, eddr, 2);
-          }
-
-          // get the optical depth across the cell
+        // get the optical depth across the cell
 #pragma omp simd
-          for(int i=il; i<=iu; ++i){
-            vdiff_l(i) = pcr->v_diff(2,k-1,j,i);
-            vdiff_r(i) = pcr->v_diff(2,k,j,i);
-          }
-         // calculate the flux
-          CRFlux(CRF3, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr,
+        for(int i=il; i<=iu; ++i){
+          vdiff_l(i) = pcr->v_diff(2,k-1,j,i);
+          vdiff_r(i) = pcr->v_diff(2,k,j,i);
+        }
+        // calculate the flux
+        CRFlux(CRF3, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr,
                                                vdiff_l, vdiff_r, flx);
         
         // store the flux
-          for(int n=0; n<NCR; ++n){
+        for(int n=0; n<NCR; ++n){
 #pragma omp simd
-            for(int i=is; i<=ie; ++i){
-              x3flux(n,k,j,i) = flx(n,i);
-            }
+          for(int i=is; i<=ie; ++i){
+            x3flux(n,k,j,i) = flx(n,i);
           }
-
         }
       }
-    }// finish k direction
-
-  
-}// end of omp parallel region
-  
-
-  
-}
+    }
+  }// finish k direction
+ }
 
 //----------------------------------------------------------------------------------------
-//! \fn  void CRIntegrator::AddFluxDivergenceToAverage
-//  \brief Adds flux divergence to weighted average of conservative variables from
+//  Adds flux divergence to weighted average of conservative variables from
 //  previous step(s) of time integrator algorithm
-
 void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_cr,
 		                              AthenaArray<Real> &u, const Real wght, 
 					      AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
@@ -340,7 +284,6 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
     
   for (int k=ks; k<=ke; ++k) { 
     for (int j=js; j<=je; ++j) {
-
       // calculate x1-flux divergence 
       pmb->pcoord->Face1Area(k,j,is,ie+1,x1area);
       for(int n=0; n<NCR; ++n){
@@ -349,7 +292,6 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
           dflx(n,i) = (x1area(i+1) *x1flux(n,k,j,i+1) - x1area(i)*x1flux(n,k,j,i));
         }// end i
       }// End n
-
 
      // calculate x2-flux
       if (pmb->block_size.nx2 > 1) {
@@ -383,7 +325,8 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
           u_cr(n,k,j,i) -= wght*dt*dflx(n,i)/vol(i);
         }
       }
-      // check cosmic ray energy density is always positive
+      
+      // Check that cosmic ray energy density is always positive
       for(int i=is; i<=ie; ++i){
         if(u_cr(CRE,k,j,i) < TINY_NUMBER)
           u_cr(CRE,k,j,i) = TINY_NUMBER;
@@ -419,7 +362,6 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
         } 
       }// end nx3
 
-
       for(int n=0; n<3; ++n){
 #pragma omp simd
         for(int i=is; i<=ie; ++i){
@@ -436,54 +378,49 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
                             + vtoty * grad_pc_(1,k,j,i) 
                             + vtotz * grad_pc_(2,k,j,i);
 
+         Real inv_sqrt_rho = 1.0/sqrt(w(IDN,k,j,i));
 
-         if(MAGNETIC_FIELDS_ENABLED){
-           Real inv_sqrt_rho = 1.0/sqrt(w(IDN,k,j,i));
+         Real pb= bcc(IB1,k,j,i)*bcc(IB1,k,j,i)
+                +bcc(IB2,k,j,i)*bcc(IB2,k,j,i)
+                +bcc(IB3,k,j,i)*bcc(IB3,k,j,i);
 
-           Real pb= bcc(IB1,k,j,i)*bcc(IB1,k,j,i)
-                  +bcc(IB2,k,j,i)*bcc(IB2,k,j,i)
-                  +bcc(IB3,k,j,i)*bcc(IB3,k,j,i);
+         Real b_grad_pc = bcc(IB1,k,j,i) * grad_pc_(0,k,j,i) 
+                        + bcc(IB2,k,j,i) * grad_pc_(1,k,j,i) 
+                        + bcc(IB3,k,j,i) * grad_pc_(2,k,j,i);
 
-           Real b_grad_pc = bcc(IB1,k,j,i) * grad_pc_(0,k,j,i) 
-                          + bcc(IB2,k,j,i) * grad_pc_(1,k,j,i) 
-                          + bcc(IB3,k,j,i) * grad_pc_(2,k,j,i);
+         Real va1 = bcc(IB1,k,j,i) * inv_sqrt_rho;
+         Real va2 = bcc(IB2,k,j,i) * inv_sqrt_rho;
+         Real va3 = bcc(IB3,k,j,i) * inv_sqrt_rho;
 
-           Real va1 = bcc(IB1,k,j,i) * inv_sqrt_rho;
-           Real va2 = bcc(IB2,k,j,i) * inv_sqrt_rho;
-           Real va3 = bcc(IB3,k,j,i) * inv_sqrt_rho;
+	 Real va = 0.0;//sqrt(pb) * inv_sqrt_rho;
+         Real dpc_sign = 0.0;
 
-	   Real va = sqrt(pb) * inv_sqrt_rho;
-           Real dpc_sign = 0.0;
+         if(b_grad_pc > TINY_NUMBER) dpc_sign = 1.0;
+         else if(-b_grad_pc > TINY_NUMBER) dpc_sign = -1.0;
 
-           if(b_grad_pc > TINY_NUMBER) dpc_sign = 1.0;
-           else if(-b_grad_pc > TINY_NUMBER) dpc_sign = -1.0;
+	 pcr->v_adv(0,k,j,i) = 0.0;//-va1 * dpc_sign;
+         pcr->v_adv(1,k,j,i) = 0.0;//-va2 * dpc_sign;
+         pcr->v_adv(2,k,j,i) = 0.0;//-va3 * dpc_sign;
 
-	   pcr->v_adv(0,k,j,i) = -va1 * dpc_sign;
-           pcr->v_adv(1,k,j,i) = -va2 * dpc_sign;
-           pcr->v_adv(2,k,j,i) = -va3 * dpc_sign;
+         vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
+         vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
+         vtotz = w(IVZ,k,j,i) + pcr->v_adv(2,k,j,i);
 
-           vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
-           vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
-           vtotz = w(IVZ,k,j,i) + pcr->v_adv(2,k,j,i);
-
-           v_dot_gradpc = vtotx * grad_pc_(0,k,j,i) 
-                        + vtoty * grad_pc_(1,k,j,i) 
-                        + vtotz * grad_pc_(2,k,j,i);
-           if(va > TINY_NUMBER){
-              pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(va * (1.0 + 
-                                      pcr->prtensor_cr(PC11,k,j,i)) 
-                                        * invlim * u_cr(CRE,k,j,i));
-              pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
-              pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
-           }
-             
-         }// end mhd
+         v_dot_gradpc = vtotx * grad_pc_(0,k,j,i) 
+                      + vtoty * grad_pc_(1,k,j,i) 
+                      + vtotz * grad_pc_(2,k,j,i);
+         if(va > TINY_NUMBER){
+            pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(va * (1.0 + 
+                                    pcr->prtensor_cr(PC11,k,j,i)) 
+                                      * invlim * u_cr(CRE,k,j,i));
+            pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
+            pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
+         }
 
          // Add the work term to CRs and gas total energy
          Real esource = wght * dt * v_dot_gradpc;
-	 //u_cr(CRE,k,j,i) += esource;
-	 //std::cout << "esource = " << esource << "    CRE = " << u_cr(CRE,k,j,i) << " " << k << " " << j << " " << i << std::endl;
-         //u(IEN,k,j,i) -= esource;
+	 u_cr(CRE,k,j,i) += esource;
+         u(IEN,k,j,i) -= esource;
 
       }// end i
     }// end j
@@ -491,9 +428,7 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn  void CRIntegrator::WeightedAveU
-//  \brief Compute weighted average of cell-averaged U in time integrator step
-
+//  Compute weighted average of cell-averaged U in time integrator step
 void CRIntegrator::WeightedAveU(MeshBlock* pmb, AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                          AthenaArray<Real> &u_in2, const Real wght[3]) {
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
