@@ -481,8 +481,9 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
 
          // Add the work term to CRs and gas total energy
          Real esource = wght * dt * v_dot_gradpc;
-	 u_cr(CRE,k,j,i) += esource;
-         u(IEN,k,j,i) -= esource;
+	 //u_cr(CRE,k,j,i) += esource;
+	 //std::cout << "esource = " << esource << "    CRE = " << u_cr(CRE,k,j,i) << " " << k << " " << j << " " << i << std::endl;
+         //u(IEN,k,j,i) -= esource;
 
       }// end i
     }// end j

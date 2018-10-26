@@ -104,9 +104,9 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
         u_cr(CRF3,k,j,i) = newfr3;
 
         // Add source term to gas
-        u(IM1,k,j,i) += (-(newfr1 - fc1) / vmax);
-        u(IM2,k,j,i) += (-(newfr2 - fc2) / vmax);
-        u(IM3,k,j,i) += (-(newfr3 - fc3) / vmax);
+        //u(IM1,k,j,i) += (-(newfr1 - fc1) / vmax);
+        //u(IM2,k,j,i) += (-(newfr2 - fc2) / vmax);
+        //u(IM3,k,j,i) += (-(newfr3 - fc3) / vmax);
         
         // Limit the velocity to vlim*vmax
         Real vx = u(IM1,k,j,i)/u(IDN,k,j,i);
