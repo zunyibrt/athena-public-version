@@ -267,7 +267,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   if(CR_ENABLED){
     memcpy(pcr->u_cr.data(), &(mbdata[os]),  pcr->u_cr.GetSizeInBytes());
-    pcr->u_cr1 = pcr->u_cr;
     os += pcr->u_cr.GetSizeInBytes();
   }
 

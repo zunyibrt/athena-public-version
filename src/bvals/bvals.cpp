@@ -32,7 +32,7 @@
 #include "../multigrid/multigrid.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
-
+#include "../cr/cr.hpp"
 
 // MPI header
 #ifdef MPI_PARALLEL
@@ -932,7 +932,7 @@ void BoundaryValues::Initialize(void) {
           size=((pmb->block_size.nx1+1)/2)*((pmb->block_size.nx3+1)/2);
         else // (nb.fid==4 || nb.fid==5)
           size=((pmb->block_size.nx1+1)/2)*((pmb->block_size.nx2+1)/2);
-        size*=NHYDRO;
+        size*=nvar;
         if (nb.level<mylevel) { // send to coarser
           tag=CreateBvalsMPITag(nb.lid, TAG_HYDFLX, nb.targetid);
           if (bd_flcor_.req_send[nb.bufid]!=MPI_REQUEST_NULL)

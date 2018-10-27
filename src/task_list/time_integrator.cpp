@@ -850,6 +850,7 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     pbval->ProlongateBoundaries(phydro->w,  phydro->u,  pfield->b,  pfield->bcc,
                                 pcr->u_cr, t_end_stage, dt);
+
   } else {
     return TASK_FAIL;
   }
@@ -868,7 +869,6 @@ enum TaskStatus TimeIntegratorTaskList::Primitives(MeshBlock *pmb, int stage) {
   if (pbval->nblevel[1][2][1] != -1) ju+=NGHOST;
   if (pbval->nblevel[0][1][1] != -1) kl-=NGHOST;
   if (pbval->nblevel[2][1][1] != -1) ku+=NGHOST;
-
   if (stage <= nstages) {
     // At beginning of this task, phydro->w contains previous stage's W(U) output
     // and phydro->w1 is used as a register to store the current stage's output.
@@ -899,8 +899,10 @@ enum TaskStatus TimeIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int sta
     Real t_end_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage][0];
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
+
     pbval->ApplyPhysicalBoundaries(phydro->w,  phydro->u,  pfield->b,  pfield->bcc,
                                    pcr->u_cr, t_end_stage, dt);
+
   } else {
     return TASK_FAIL;
   }

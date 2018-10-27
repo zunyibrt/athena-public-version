@@ -282,9 +282,8 @@ bool BoundaryValues::ReceiveFluxCorrection(enum FluxCorrectionType type) {
     x1flux.InitWithShallowCopy(pmb->phydro->flux[X1DIR]);
     x2flux.InitWithShallowCopy(pmb->phydro->flux[X2DIR]);
     x3flux.InitWithShallowCopy(pmb->phydro->flux[X3DIR]);
-  }
 
-  if(CR_ENABLED){
+    if(CR_ENABLED){
 
             x1flux_cr.InitWithShallowCopy(pmb->pcr->flux[X1DIR]);
             x2flux_cr.InitWithShallowCopy(pmb->pcr->flux[X2DIR]);
@@ -293,6 +292,7 @@ bool BoundaryValues::ReceiveFluxCorrection(enum FluxCorrectionType type) {
             cr_flux_flag = 1;
             crns=0, crne=NCR-1;
           }
+  }
 
   for (int n=0; n<nneighbor; n++) {
     NeighborBlock& nb = neighbor[n];

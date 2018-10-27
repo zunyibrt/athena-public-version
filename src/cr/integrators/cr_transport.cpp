@@ -392,15 +392,15 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
          Real va2 = bcc(IB2,k,j,i) * inv_sqrt_rho;
          Real va3 = bcc(IB3,k,j,i) * inv_sqrt_rho;
 
-	 Real va = 0.0;//sqrt(pb) * inv_sqrt_rho;
+	 Real va = sqrt(pb) * inv_sqrt_rho;
          Real dpc_sign = 0.0;
 
          if(b_grad_pc > TINY_NUMBER) dpc_sign = 1.0;
          else if(-b_grad_pc > TINY_NUMBER) dpc_sign = -1.0;
 
-	 pcr->v_adv(0,k,j,i) = 0.0;//-va1 * dpc_sign;
-         pcr->v_adv(1,k,j,i) = 0.0;//-va2 * dpc_sign;
-         pcr->v_adv(2,k,j,i) = 0.0;//-va3 * dpc_sign;
+	 pcr->v_adv(0,k,j,i) = -va1 * dpc_sign;
+         pcr->v_adv(1,k,j,i) = -va2 * dpc_sign;
+         pcr->v_adv(2,k,j,i) = -va3 * dpc_sign;
 
          vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
          vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);

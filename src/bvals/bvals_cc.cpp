@@ -218,7 +218,7 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
 //  \brief Set hydro boundary received from a block on the same level
 
 void BoundaryValues::SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst,
-                     int ns, int ne, Real *buf, const NeighborBlock& nb, bool *flip) {
+                     int ns, int ne, Real *buf, const NeighborBlock& nb, bool *flip, int &p) {
   MeshBlock *pmb=pmy_block_;
   int si, sj, sk, ei, ej, ek;
 
@@ -232,7 +232,6 @@ void BoundaryValues::SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst,
   else if (nb.ox3>0) sk=pmb->ke+1,      ek=pmb->ke+NGHOST;
   else              sk=pmb->ks-NGHOST, ek=pmb->ks-1;
 
-  int p=0;
   if (nb.polar) {
     for (int n=ns; n<=ne; ++n) {
       Real sign = 1.0;
@@ -288,7 +287,7 @@ void BoundaryValues::SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst,
 //  \brief Set hydro prolongation buffer received from a block on a coarser level
 
 void BoundaryValues::SetCellCenteredBoundaryFromCoarser(int ns, int ne,
-             Real *buf, AthenaArray<Real> &cbuf, const NeighborBlock& nb, bool *flip) {
+             Real *buf, AthenaArray<Real> &cbuf, const NeighborBlock& nb, bool *flip, int &p) {
   MeshBlock *pmb=pmy_block_;
 
   int si, sj, sk, ei, ej, ek;
@@ -326,7 +325,6 @@ void BoundaryValues::SetCellCenteredBoundaryFromCoarser(int ns, int ne,
     sk=pmb->cks-cng, ek=pmb->cks-1;
   }
 
-  int p=0;
   if (nb.polar) {
     for (int n=ns; n<=ne; ++n) {
       Real sign = 1.0;
@@ -352,7 +350,7 @@ void BoundaryValues::SetCellCenteredBoundaryFromCoarser(int ns, int ne,
 //  \brief Set hydro boundary received from a block on a finer level
 
 void BoundaryValues::SetCellCenteredBoundaryFromFiner(AthenaArray<Real> &dst,
-                     int ns, int ne, Real *buf, const NeighborBlock& nb, bool *flip) {
+                     int ns, int ne, Real *buf, const NeighborBlock& nb, bool *flip, int &p) {
   MeshBlock *pmb=pmy_block_;
   // receive already restricted data
   int si, sj, sk, ei, ej, ek;
@@ -399,7 +397,6 @@ void BoundaryValues::SetCellCenteredBoundaryFromFiner(AthenaArray<Real> &dst,
     sk=pmb->ks-NGHOST, ek=pmb->ks-1;
   }
 
-  int p=0;
   if (nb.polar) {
     for (int n=ns; n<=ne; ++n) {
       Real sign=1.0;
@@ -470,21 +467,24 @@ bool BoundaryValues::ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst,
 #endif
     }
     if (nb.level==pmb->loc.level){
-      SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
+      int p = 0;
+      SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip, p);
       if(CR_ENABLED){
-        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
+        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr, p);
       }
     }
     else if (nb.level<pmb->loc.level){ // this set only the prolongation buffer
-      SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip);
+      int p = 0;
+      SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip, p);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromCoarser(0, NCR-1, pbd->recv[nb.bufid], cbuf_cr, nb, flip_cr);
+        SetCellCenteredBoundaryFromCoarser(0, NCR-1, pbd->recv[nb.bufid], cbuf_cr, nb, flip_cr, p);
       }
     }
     else{
-      SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
+      int p = 0;
+      SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip, p);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
+        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr, p);
       }
     }
     pbd->flag[nb.bufid] = BNDRY_COMPLETED; // completed
@@ -535,23 +535,27 @@ void BoundaryValues::ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real
       MPI_Wait(&(pbd->req_recv[nb.bufid]),MPI_STATUS_IGNORE);
 #endif
     if (nb.level==pmb->loc.level){
-      SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
+      int p = 0;
+      SetCellCenteredBoundarySameLevel(dst, ns, ne, pbd->recv[nb.bufid], nb, flip, p);
       if(CR_ENABLED){
-        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
+        SetCellCenteredBoundarySameLevel(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr, p);
       }
     }
     else if (nb.level<pmb->loc.level){
-      SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip);
+      int p = 0;
+      SetCellCenteredBoundaryFromCoarser(ns, ne, pbd->recv[nb.bufid], cbuf, nb, flip, p);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromCoarser(0, NCR-1, pbd->recv[nb.bufid], cbuf_cr, nb, flip_cr);
+        SetCellCenteredBoundaryFromCoarser(0, NCR-1, pbd->recv[nb.bufid], cbuf_cr, nb, flip_cr, p);
       }
     }
     else{
-      SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip);
+      int p = 0;
+      SetCellCenteredBoundaryFromFiner(dst, ns, ne, pbd->recv[nb.bufid], nb, flip, p);
       if(CR_ENABLED){
-        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr);
+        SetCellCenteredBoundaryFromFiner(dst_cr, 0, NCR-1, pbd->recv[nb.bufid], nb, flip_cr, p);
       }
     }
+    
     pbd->flag[nb.bufid] = BNDRY_COMPLETED; // completed
   }
   if (block_bcs[INNER_X2]==POLAR_BNDRY || block_bcs[OUTER_X2]==POLAR_BNDRY){

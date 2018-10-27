@@ -228,11 +228,11 @@ public:
   void SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src, AthenaArray<Real> &src_cr,
                                        enum CCBoundaryType type);
   void SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst, int ns, int ne,
-                                  Real *buf, const NeighborBlock& nb, bool *flip);
+                                  Real *buf, const NeighborBlock& nb, bool *flip, int &p);
   void SetCellCenteredBoundaryFromCoarser(int ns, int ne, Real *buf,
-                      AthenaArray<Real> &cbuf, const NeighborBlock& nb, bool *flip);
+                      AthenaArray<Real> &cbuf, const NeighborBlock& nb, bool *flip, int &p);
   void SetCellCenteredBoundaryFromFiner(AthenaArray<Real> &dst, int ns, int ne,
-                                  Real *buf, const NeighborBlock& nb, bool *flip);
+                                  Real *buf, const NeighborBlock& nb, bool *flip, int &p);
   bool ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst, AthenaArray<Real> &dst_cr,
                                           enum CCBoundaryType type);
   void ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real> &dst, AthenaArray<Real> &dst_cr,
