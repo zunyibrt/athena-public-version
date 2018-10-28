@@ -410,7 +410,7 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
                       + vtoty * grad_pc_(1,k,j,i) 
                       + vtotz * grad_pc_(2,k,j,i);
          if(va > TINY_NUMBER){
-            pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(va * (1.0 + 
+            pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(sqrt(pb) * va * (1.0 + 
                                     pcr->prtensor_cr(PC11,k,j,i)) 
                                       * invlim * u_cr(CRE,k,j,i));
             pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
