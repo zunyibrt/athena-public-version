@@ -67,6 +67,7 @@
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
+#include "../cr/cr.hpp"
 #include "outputs.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -301,6 +302,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Hydro *phyd = pmb->phydro;
   Field *pfld = pmb->pfield;
   Gravity *pgrav = pmb->pgrav;
+  CosmicRay *pcr = pmb->pcr;
   num_vars_ = 0;
   OutputData *pod;
 
@@ -543,6 +545,95 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
 
   } // endif (MAGNETIC_FIELDS_ENABLED)
+
+  if(CR_ENABLED){
+    // (lab-frame) radiation energy density
+    if (output_params.variable.compare("Ec") == 0 ||
+        output_params.variable.compare("cons") == 0 ||
+        output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "Ec";
+      pod->data.InitWithShallowSlice(pcr->u_cr,4,CRE,1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+
+
+    // lab fram radiation flux vector
+    if (output_params.variable.compare("Fc") == 0 ||
+        output_params.variable.compare("cons") == 0 ||
+        output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "Fc";
+      pod->data.InitWithShallowSlice(pcr->u_cr,4,CRF1,3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+      if(output_params.cartesian_vector) {
+        AthenaArray<Real> src;
+        src.InitWithShallowSlice(pcr->u_cr,4,CRF1,3);
+        pod = new OutputData;
+        pod->type = "VECTORS";
+        pod->name = "Fc_xyz";
+        pod->data.NewAthenaArray(3,pcr->u_cr.GetDim3(),pcr->u_cr.GetDim2(),
+                                    pcr->u_cr.GetDim1());
+        CalculateCartesianVector(src, pod->data, pmb->pcoord);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+      }
+    }
+
+    if (output_params.variable.compare("Sigma_diff") == 0 ||
+        output_params.variable.compare("cons") == 0 ||
+        output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "Sigma_diff";
+      pod->data.InitWithShallowSlice(pcr->sigma_diff,4,0,3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
+
+    if (output_params.variable.compare("Sigma_adv") == 0 ||
+        output_params.variable.compare("cons") == 0 ||
+        output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "Sigma_adv";
+      pod->data.InitWithShallowSlice(pcr->sigma_adv,4,0,3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
+
+    // the total advection velocity, including flow velocity
+    // and the component with Pc gradient
+    if (output_params.variable.compare("Vc") == 0 ||
+        output_params.variable.compare("cons") == 0 ||
+        output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "Vc";
+      pod->data.InitWithShallowSlice(pcr->v_adv,4,0,3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+      if(output_params.cartesian_vector) {
+        AthenaArray<Real> src;
+        src.InitWithShallowSlice(pcr->v_adv,4,0,3);
+        pod = new OutputData;
+        pod->type = "VECTORS";
+        pod->name = "Vc_xyz";
+        pod->data.NewAthenaArray(3,pcr->v_adv.GetDim3(),
+                                   pcr->v_adv.GetDim2(),
+                                   pcr->v_adv.GetDim1());
+        CalculateCartesianVector(src, pod->data, pmb->pcoord);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+      }
+    }
+
+  }// End Cosmic Ray
 
   if (output_params.variable.compare(0, 3, "uov") == 0
    || output_params.variable.compare(0, 12, "user_out_var") == 0) {

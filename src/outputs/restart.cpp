@@ -26,6 +26,7 @@
 #include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
+#include "../cr/cr.hpp"
 #include "outputs.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -167,6 +168,11 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       pdata+=pmb->pfield->b.x2f.GetSizeInBytes();
       memcpy(pdata,pmb->pfield->b.x3f.data(),pmb->pfield->b.x3f.GetSizeInBytes());
       pdata+=pmb->pfield->b.x3f.GetSizeInBytes();
+    }
+
+    if(CR_ENABLED){
+      memcpy(pdata,pmb->pcr->u_cr.data(),pmb->pcr->u_cr.GetSizeInBytes());
+      pdata+=pmb->pcr->u_cr.GetSizeInBytes();
     }
 
     // NEW_PHYSICS: add output of additional physics to restarts here

@@ -151,6 +151,13 @@ public:
   enum TaskStatus GravFluxCorrection(MeshBlock *pmb, int stage);
 
   enum TaskStatus StartupIntegrator(MeshBlock *pmb, int stage);
+
+  // task functions for cosmic rays
+  enum TaskStatus CRFluxes(MeshBlock *pmb, int stage);
+  enum TaskStatus CRIntegrate(MeshBlock *pmb, int stage);
+  enum TaskStatus CRSourceTerms(MeshBlock *pmb, int stage);
+  enum TaskStatus CRVAOpacity(MeshBlock *pmb, int stage);
+
 };
 
 
@@ -228,6 +235,13 @@ namespace HydroIntegratorTaskNames {
   const uint64_t DIFFUSE_HYD=1LL<<53;
   const uint64_t DIFFUSE_FLD=1LL<<54;
   const uint64_t CALC_DIFFUSIVITY=1LL<<55;
+
+  // tasks for Cosmic Ray Transport
+  const uint64_t CALC_CRFLX=1LL<<56;
+  const uint64_t INT_CR=1LL<<57;
+  const uint64_t SRCTERM_CR=1LL<<58;
+  const uint64_t CR_VAOPACITY=1L<<59;
+
 }; // namespace HydroIntegratorTaskNames
 
 #endif // TASK_LIST_TASK_LIST_HPP_

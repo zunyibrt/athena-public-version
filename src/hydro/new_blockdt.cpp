@@ -21,6 +21,7 @@
 #include "../field/field.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
+#include "../cr/cr.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -47,6 +48,10 @@ Real Hydro::NewBlockTimeStep(void) {
     b_x2f.InitWithShallowCopy(pmb->pfield->b.x2f);
     b_x3f.InitWithShallowCopy(pmb->pfield->b.x3f);
   }
+
+  Real crspeed = 0.0;
+  if (CR_ENABLED)
+    crspeed = pmb->pcr->vmax;
 
   AthenaArray<Real> dt1, dt2, dt3;
   dt1.InitWithShallowCopy(dt1_);
@@ -76,26 +81,26 @@ Real Hydro::NewBlockTimeStep(void) {
             wi[IBY] = bcc(IB2,k,j,i);
             wi[IBZ] = bcc(IB3,k,j,i);
             Real cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt1(i) /= (fabs(wi[IVX]) + cf);
+            dt1(i) /= std::max(crspeed, (fabs(wi[IVX]) + cf));
 
             wi[IBY] = bcc(IB3,k,j,i);
             wi[IBZ] = bcc(IB1,k,j,i);
             bx = bcc(IB2,k,j,i) + fabs(b_x2f(k,j,i)-bcc(IB2,k,j,i));
             cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt2(i) /= (fabs(wi[IVY]) + cf);
+            dt2(i) /= std::max(crspeed, (fabs(wi[IVY]) + cf));
 
             wi[IBY] = bcc(IB1,k,j,i);
             wi[IBZ] = bcc(IB2,k,j,i);
             bx = bcc(IB3,k,j,i) + fabs(b_x3f(k,j,i)-bcc(IB3,k,j,i));
             cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-            dt3(i) /= (fabs(wi[IVZ]) + cf);
+            dt3(i) /= std::max(crspeed, (fabs(wi[IVZ]) + cf));
 
           } else {
 
             Real cs = pmb->peos->SoundSpeed(wi);
-            dt1(i) /= (fabs(wi[IVX]) + cs);
-            dt2(i) /= (fabs(wi[IVY]) + cs);
-            dt3(i) /= (fabs(wi[IVZ]) + cs);
+            dt1(i) /= std::max(crspeed, (fabs(wi[IVX]) + cs));
+            dt2(i) /= std::max(crspeed, (fabs(wi[IVY]) + cs));
+            dt3(i) /= std::max(crspeed, (fabs(wi[IVZ]) + cs));
 
           }
         }

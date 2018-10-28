@@ -42,7 +42,10 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     $(wildcard src/gravity/*.cpp) \
 	     $(MPIFFT_FILE) \
 	     src/pgen/$(PROBLEM_FILE) \
-	     src/pgen/default_pgen.cpp
+	     src/pgen/default_pgen.cpp \
+	     $(wildcard src/cr/*.cpp) \
+             $(wildcard src/cr/integrators/*.cpp)
+
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))
 SRC_DIR := $(dir $(SRC_FILES) $(PROB_FILES))
