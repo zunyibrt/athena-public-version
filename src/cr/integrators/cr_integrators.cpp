@@ -43,7 +43,7 @@ CRIntegrator::CRIntegrator(CosmicRay *pcr, ParameterInput *pin) {
   cell_volume_.NewAthenaArray(nthreads,ncells1);
 
   grad_pc_.NewAthenaArray(3,ncells3,ncells2,ncells1);
-
+  ec_source_.NewAthenaArray(ncells3,ncells2,ncells1);
 }
 
 // Destructor
@@ -73,7 +73,7 @@ CRIntegrator::~CRIntegrator()
   cell_volume_.DeleteAthenaArray();
 
   grad_pc_.DeleteAthenaArray();
-
+  ec_source_.DeleteAthenaArray();
 }
 
 void CRIntegrator::RotateVec(const Real sint, const Real cost, 

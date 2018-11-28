@@ -75,28 +75,16 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
         InvRotateVec(sint_b,cost_b,sinp_b,cosp_b,newfr1,newfr2,newfr3);
 
         // Update Cosmic Ray quantities
-	u_cr(CRE ,k,j,i) = ec;
+	u_cr(CRE ,k,j,i) = ec + dt*ec_source_(k,j,i);
         u_cr(CRF1,k,j,i) = newfr1;
         u_cr(CRF2,k,j,i) = newfr2;
         u_cr(CRF3,k,j,i) = newfr3;
 
         // Add source term to gas
-        u(IM1,k,j,i) += (-(newfr1 - fc1) / vmax);
-        u(IM2,k,j,i) += (-(newfr2 - fc2) / vmax);
-        u(IM3,k,j,i) += (-(newfr3 - fc3) / vmax);
-        
-        // Limit the velocity to vlim*vmax
-        Real vx = u(IM1,k,j,i)/u(IDN,k,j,i);
-        Real vy = u(IM2,k,j,i)/u(IDN,k,j,i);
-        Real vz = u(IM3,k,j,i)/u(IDN,k,j,i);
-        Real vel = sqrt(vx*vx + vy*vy + vz*vz);
-        Real ratio = vel/vmax;
-        if (ratio > pcr->vlim) {
-          Real factor = pcr->vlim/ratio;
-          u(IM1,k,j,i) *= factor;
-          u(IM2,k,j,i) *= factor;
-          u(IM3,k,j,i) *= factor;
-        }
+        //u(IEN,k,j,i) -= dt*ec_source_(k,j,i);
+        //u(IM1,k,j,i) += (-(newfr1 - fc1) / vmax);
+        //u(IM2,k,j,i) += (-(newfr2 - fc2) / vmax);
+        //u(IM3,k,j,i) += (-(newfr3 - fc3) / vmax);
 
       }// end i
     }// end j

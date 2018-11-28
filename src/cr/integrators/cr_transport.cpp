@@ -21,7 +21,7 @@
 #include "cr_integrators.hpp"
 
 void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w, 
-		                   AthenaArray<Real> &u_cr, 
+		                   AthenaArray<Real> &bcc, AthenaArray<Real> &u_cr, 
 				   int reconstruct_order) {
   CosmicRay *pcr=pmy_cr;
   Coordinates *pco = pmb->pcoord;
@@ -55,6 +55,14 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
   wr.InitWithShallowCopy(wr_);
   cwidth.InitWithShallowCopy(cwidth_);
 
+  // The area functions needed to calculate Grad Pc
+  AthenaArray<Real> x1area, x2area, x2area_p1, x3area, x3area_p1, vol;
+  x1area.InitWithShallowCopy(x1face_area_);
+  x2area.InitWithShallowCopy(x2face_area_);
+  x2area_p1.InitWithShallowCopy(x2face_area_p1_);
+  x3area.InitWithShallowCopy(x3face_area_);
+  x3area_p1.InitWithShallowCopy(x3face_area_p1_);
+  vol.InitWithShallowCopy(cell_volume_);
 
 //--------------------------------------------------------------------------------------
   // First, calculate the diffusion velocity along three coordinate system
@@ -251,7 +259,147 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
       }
     }
   }// finish k direction
- }
+
+  // Now calculate Grad Pc and the associated heating term
+  //--------------------------------------------------------------------------------//
+    for (int k=ks; k<=ke; ++k) {
+      for (int j=js; j<=je; ++j) {
+        pmb->pcoord->Face1Area(k,j,is,ie+1,x1area);
+        pmb->pcoord->CellVolume(k,j,is,ie,vol);
+        // x1 direction
+        for(int n=0; n<3; ++n){
+#pragma omp simd
+          for(int i=is; i<=ie; ++i){
+            grad_pc_(n,k,j,i) = (x1area(i+1)*x1flux(CRF1+n,k,j,i+1)
+                               - x1area(i)  *x1flux(CRF1+n,k,j,i))/vol(i);
+          }
+        }
+
+        if(pmb->block_size.nx2 > 1){
+          pmb->pcoord->Face2Area(k,j  ,is,ie,x2area   );
+          pmb->pcoord->Face2Area(k,j+1,is,ie,x2area_p1);
+          for(int n=0; n<3; ++n){
+#pragma omp simd
+            for(int i=is; i<=ie; ++i){
+              grad_pc_(n,k,j,i) += (x2area_p1(i)*x2flux(CRF1+n,k,j+1,i)
+                                 -  x2area(i)  *x2flux(CRF1+n,k,j,i))/vol(i);
+            }// end i
+          }
+        }// end nx2
+
+        if(pmb->block_size.nx3 > 1){
+          pmb->pcoord->Face3Area(k  ,j,is,ie,x3area   );
+          pmb->pcoord->Face3Area(k+1,j,is,ie,x3area_p1);
+          for(int n=0; n<3; ++n){
+#pragma omp simd
+            for(int i=is; i<=ie; ++i){
+              grad_pc_(n,k,j,i) += (x3area_p1(i) *x3flux(CRF1+n,k+1,j,i)
+                                  - x3area(i)*x3flux(CRF1+n,k,j,i))/vol(i);
+            }
+          }
+        }// end nx3
+
+
+        for(int n=0; n<3; ++n){
+#pragma omp simd
+          for(int i=is; i<=ie; ++i){
+            grad_pc_(n,k,j,i) *= invvmax;
+          }
+        }
+
+        // calculate streaming velocity with magnetic field
+        for(int i=is; i<=ie; ++i){
+            Real vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
+            Real vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
+            Real vtotz = w(IVZ,k,j,i) + pcr->v_adv(2,k,j,i);
+            Real v_dot_gradpc = vtotx * grad_pc_(0,k,j,i)
+                              + vtoty * grad_pc_(1,k,j,i)
+                              + vtotz * grad_pc_(2,k,j,i);
+
+                Real inv_sqrt_rho = 1.0/sqrt(w(IDN,k,j,i));
+
+                Real pb= bcc(IB1,k,j,i)*bcc(IB1,k,j,i)
+                        +bcc(IB2,k,j,i)*bcc(IB2,k,j,i)
+                        +bcc(IB3,k,j,i)*bcc(IB3,k,j,i);
+
+                Real b_grad_pc = bcc(IB1,k,j,i) * grad_pc_(0,k,j,i)
+                               + bcc(IB2,k,j,i) * grad_pc_(1,k,j,i)
+                               + bcc(IB3,k,j,i) * grad_pc_(2,k,j,i);
+
+                Real va1 = bcc(IB1,k,j,i) * inv_sqrt_rho;
+                Real va2 = bcc(IB2,k,j,i) * inv_sqrt_rho;
+                Real va3 = bcc(IB3,k,j,i) * inv_sqrt_rho;
+
+                Real va = sqrt(pb) * inv_sqrt_rho;
+                Real dpc_sign = 0.0;
+
+                if(b_grad_pc > TINY_NUMBER) dpc_sign = 1.0;
+                else if(-b_grad_pc > TINY_NUMBER) dpc_sign = -1.0;
+
+                pcr->v_adv(0,k,j,i) = -va1 * dpc_sign;
+                pcr->v_adv(1,k,j,i) = -va2 * dpc_sign;
+                pcr->v_adv(2,k,j,i) = -va3 * dpc_sign;
+
+                if(va > TINY_NUMBER){
+                  pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(sqrt(pb) * va *
+                                 (1.0 + pcr->prtensor_cr(PC11,k,j,i))
+                                            * invvmax * u_cr(CRE,k,j,i));
+                  pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
+                  pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
+                }
+
+                Real sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i) +
+                               1.0/pcr->sigma_adv(0,k,j,i));
+
+                vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
+                vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
+                vtotz = w(IVZ,k,j,i) + pcr->v_adv(2,k,j,i);
+
+                Real v1 = w(IVX,k,j,i);
+                Real v2 = w(IVY,k,j,i);
+                Real v3 = w(IVZ,k,j,i);
+
+                Real dpcdx = grad_pc_(0,k,j,i);
+                Real dpcdy = grad_pc_(1,k,j,i);
+                Real dpcdz = grad_pc_(2,k,j,i);
+
+
+                // explicit method needs to use CR flux from previous step
+                Real fr1 = u_cr(CRF1,k,j,i);
+                Real fr2 = u_cr(CRF2,k,j,i);
+                Real fr3 = u_cr(CRF3,k,j,i);
+
+               // perform rotation
+                RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
+                         pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),vtotx,vtoty,vtotz);
+
+                RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
+                         pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),dpcdx,dpcdy,dpcdz);
+
+                RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
+                         pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),v1,v2,v3);
+
+
+                RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
+                         pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),fr1,fr2,fr3);
+
+
+              // only calculate v_dot_gradpc perpendicular to B
+              // perpendicular direction only has flow velocity, no streaming velocity
+                v_dot_gradpc = v2 * dpcdy + v3 * dpcdz;
+
+                Real fxx = pcr->prtensor_cr(PC11,k,j,i);
+                Real fxy = pcr->prtensor_cr(PC12,k,j,i);
+                Real fxz = pcr->prtensor_cr(PC13,k,j,i);
+
+                Real fr_cm1 = fr1 - (v1 * (1.0 + fxx) + v2 * fxy + v3 * fxz)
+                              * u_cr(CRE,k,j,i) * invvmax;
+
+                ec_source_(k,j,i) = (v_dot_gradpc - vtotx * sigma_x * fr_cm1);
+        }// end i
+      }// end k
+    }// end j
+}
 
 //----------------------------------------------------------------------------------------
 //  Adds flux divergence to weighted average of conservative variables from
@@ -270,9 +418,7 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   
   Real dt = pmb->pmy_mesh->dt;
-  Real invlim = 1.0/pcr->vmax;
 
-  int tid=0;
   AthenaArray<Real> x1area, x2area, x2area_p1, x3area, x3area_p1, vol, dflx;
   x1area.InitWithShallowCopy(x1face_area_);
   x2area.InitWithShallowCopy(x2face_area_);
@@ -330,101 +476,11 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
       for(int i=is; i<=ie; ++i){
         if(u_cr(CRE,k,j,i) < TINY_NUMBER)
           u_cr(CRE,k,j,i) = TINY_NUMBER;
-      }    
-
-     //--------------------------------------------------------------------------------//
-     // calculate Grad P_c, get B*Grad P_c as well as streaming velocity
-      for(int n=0; n<3; ++n){
-#pragma omp simd
-        for(int i=is; i<=ie; ++i){
-          grad_pc_(n,k,j,i) = (x1area(i+1)*x1flux(CRF1+n,k,j,i+1) 
-                               - x1area(i)  *x1flux(CRF1+n,k,j,i))/vol(i);
-       }
-      } 
-
-      if(pmb->block_size.nx2 > 1){
-        for(int n=0; n<3; ++n){
-#pragma omp simd
-          for(int i=is; i<=ie; ++i){
-            grad_pc_(n,k,j,i) += (x2area_p1(i)*x2flux(CRF1+n,k,j+1,i) 
-                                 -  x2area(i)  *x2flux(CRF1+n,k,j,i))/vol(i);
-          }// end i
-        }  
-      }// end nx2
-
-      if(pmb->block_size.nx3 > 1){
-        for(int n=0; n<3; ++n){
-#pragma omp simd
-          for(int i=is; i<=ie; ++i){
-            grad_pc_(n,k,j,i) += (x3area_p1(i) *x3flux(CRF1+n,k+1,j,i) 
-                                  - x3area(i)*x3flux(CRF1+n,k,j,i))/vol(i);
-          } 
-        } 
-      }// end nx3
-
-      for(int n=0; n<3; ++n){
-#pragma omp simd
-        for(int i=is; i<=ie; ++i){
-          grad_pc_(n,k,j,i) *= invlim;
-       }
-      } 
-
-     // calculate streaming velocity with magnetic field
-      for(int i=is; i<=ie; ++i){
-          Real vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
-          Real vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
-          Real vtotz = w(IVZ,k,j,i) + pcr->v_adv(2,k,j,i);
-          Real v_dot_gradpc = vtotx * grad_pc_(0,k,j,i) 
-                            + vtoty * grad_pc_(1,k,j,i) 
-                            + vtotz * grad_pc_(2,k,j,i);
-
-         Real inv_sqrt_rho = 1.0/sqrt(w(IDN,k,j,i));
-
-         Real pb= bcc(IB1,k,j,i)*bcc(IB1,k,j,i)
-                +bcc(IB2,k,j,i)*bcc(IB2,k,j,i)
-                +bcc(IB3,k,j,i)*bcc(IB3,k,j,i);
-
-         Real b_grad_pc = bcc(IB1,k,j,i) * grad_pc_(0,k,j,i) 
-                        + bcc(IB2,k,j,i) * grad_pc_(1,k,j,i) 
-                        + bcc(IB3,k,j,i) * grad_pc_(2,k,j,i);
-
-         Real va1 = bcc(IB1,k,j,i) * inv_sqrt_rho;
-         Real va2 = bcc(IB2,k,j,i) * inv_sqrt_rho;
-         Real va3 = bcc(IB3,k,j,i) * inv_sqrt_rho;
-
-	 Real va = sqrt(pb) * inv_sqrt_rho;
-         Real dpc_sign = 0.0;
-
-         if(b_grad_pc > TINY_NUMBER) dpc_sign = 1.0;
-         else if(-b_grad_pc > TINY_NUMBER) dpc_sign = -1.0;
-
-	 pcr->v_adv(0,k,j,i) = -va1 * dpc_sign;
-         pcr->v_adv(1,k,j,i) = -va2 * dpc_sign;
-         pcr->v_adv(2,k,j,i) = -va3 * dpc_sign;
-
-         vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
-         vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
-         vtotz = w(IVZ,k,j,i) + pcr->v_adv(2,k,j,i);
-
-         v_dot_gradpc = vtotx * grad_pc_(0,k,j,i) 
-                      + vtoty * grad_pc_(1,k,j,i) 
-                      + vtotz * grad_pc_(2,k,j,i);
-         if(va > TINY_NUMBER){
-            pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(sqrt(pb) * va * (1.0 + 
-                                    pcr->prtensor_cr(PC11,k,j,i)) 
-                                      * invlim * u_cr(CRE,k,j,i));
-            pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
-            pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
-         }
-
-         // Add the work term to CRs and gas total energy
-         Real esource = wght * dt * v_dot_gradpc;
-	 u_cr(CRE,k,j,i) += esource;
-         u(IEN,k,j,i) -= esource;
-
-      }// end i
+      }
+    
     }// end j
-  }// End k
+  }// end k
+
 }
 
 //----------------------------------------------------------------------------------------

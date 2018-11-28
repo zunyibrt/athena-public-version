@@ -1002,15 +1002,16 @@ enum TaskStatus TimeIntegratorTaskList::CRFluxes(MeshBlock *pmb, int stage)
 {
   CosmicRay *pcr=pmb->pcr;
   Hydro *phydro=pmb->phydro;
+  Field *pfield=pmb->pfield;
 
   if (stage <= nstages) {
     // why this specific if statement? not needed if pmb->precon->xorder is set to 1
     if((stage == 1) && (integrator == "vl2")) {
-      pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pcr->u_cr, 1);
+      pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, pcr->u_cr, 1);
       return TASK_NEXT;
     } else {
       //Note, should make sure that pcrintegrator can handle order of 3, not True as of now
-      pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pcr->u_cr, pmb->precon->xorder);
+      pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, pcr->u_cr, pmb->precon->xorder);
       return TASK_NEXT;
     }
   }
