@@ -25,7 +25,7 @@ class CRIntegrator {
   void AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
                       AthenaArray<Real> &w, AthenaArray<Real> &u_cr);
 
-  void CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w, 
+  void CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w, AthenaArray<Real> &bcc, 
 		       AthenaArray<Real> &u_cr, int reconstruct_order);
 
   void AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_cr,
@@ -96,6 +96,7 @@ class CRIntegrator {
   AthenaArray<Real> vel_l_,vel_r_,wl_,wr_,vdiff_l_,vdiff_r_;
   AthenaArray<Real> eddl_,eddr_;
   AthenaArray<Real> grad_pc_;
+  AthenaArray<Real> ec_source_;
 
   // Temporary array to store the flux
   Real taufact_;
