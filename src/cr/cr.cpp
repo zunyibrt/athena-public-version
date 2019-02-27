@@ -117,7 +117,7 @@ void DefaultDiff(MeshBlock *pmb, AthenaArray<Real> &u_cr,
           Real b_grad_pc = bcc(IB1,k,j,i) * pcr->sigma_adv(0,k,j,i)
                          + bcc(IB2,k,j,i) * pcr->sigma_adv(1,k,j,i)
                          + bcc(IB3,k,j,i) * pcr->sigma_adv(2,k,j,i);
-          pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(va * (1.0 + 
+          pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(btot * va * (1.0 + 
                                pcr->prtensor_cr(PC11,k,j,i)) * (1.0/pcr->vmax) * 
                                u_cr(CRE,k,j,i));
         }

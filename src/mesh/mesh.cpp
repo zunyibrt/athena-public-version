@@ -1971,7 +1971,7 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 	if(CR_ENABLED){
 
           pmr->RestrictCellCenteredValues(pb->pcr->u_cr, pmr->coarse_ucr_, 0, NCR-1,
-          pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, HYDRO_CONS);
+          pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
           BufferUtility::Pack4DData(pmr->coarse_ucr_, sendbuf[k], 0, NCR-1,
              pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
 
