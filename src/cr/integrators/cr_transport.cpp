@@ -20,14 +20,14 @@
 #include "../../coordinates/coordinates.hpp"
 #include "cr_integrators.hpp"
 
-void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w, 
-		                   AthenaArray<Real> &bcc, AthenaArray<Real> &u_cr, 
-				   int reconstruct_order) {
+void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
+		                   AthenaArray<Real> &bcc, AthenaArray<Real> &u_cr,
+				               int reconstruct_order) {
   CosmicRay *pcr=pmy_cr;
   Coordinates *pco = pmb->pcoord;
-  
+
   Real invvmax=1.0/pcr->vmax;
-  
+
   AthenaArray<Real> &x1flux=pcr->flux[X1DIR];
   AthenaArray<Real> &x2flux=pcr->flux[X2DIR];
   AthenaArray<Real> &x3flux=pcr->flux[X3DIR];
@@ -40,7 +40,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
   int n2 = pmb->block_size.nx2;
   int n3 = pmb->block_size.nx3;
   if(pmb->block_size.nx2 > 1) n2 += 2*NGHOST;
-  if(pmb->block_size.nx3 > 1) n3 += 2*NGHOST;  
+  if(pmb->block_size.nx3 > 1) n3 += 2*NGHOST;
 
   AthenaArray<Real> flx, vel_l, vel_r, wl, wr, vdiff_l, vdiff_r, eddl, eddr;
   AthenaArray<Real> cwidth;
@@ -75,7 +75,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
 
       for(int i=0; i<n1; ++i){
         Real eddxx=pcr->prtensor_cr(PC11,k,j,i);
-        Real totsigma = 1.0/(1.0/pcr->sigma_diff(0,k,j,i) 
+        Real totsigma = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
                            + 1.0/pcr->sigma_adv(0,k,j,i));
         Real taux = taufact_ * totsigma * pco->dx1f(i);
         taux = taux * taux/(2.0 * eddxx);
@@ -92,7 +92,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
       // get the optical depth across the cell
       for(int i=0; i<n1; ++i){
         Real eddyy=pcr->prtensor_cr(PC22,k,j,i);
-        Real totsigma = 1.0/(1.0/pcr->sigma_diff(1,k,j,i) 
+        Real totsigma = 1.0/(1.0/pcr->sigma_diff(1,k,j,i)
                            + 1.0/pcr->sigma_adv(1,k,j,i));
         Real tauy = taufact_ * totsigma * cwidth(i);
         tauy = tauy * tauy/(2.0 * eddyy);
@@ -101,14 +101,14 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
         if(tauy < 1.e-3)
           diffv = sqrt((1.0 - 0.5* tauy));
 
-        pcr->v_diff(1,k,j,i) = pcr->vmax * sqrt(eddyy) * diffv;            
+        pcr->v_diff(1,k,j,i) = pcr->vmax * sqrt(eddyy) * diffv;
       }// end i
       // z direction
       pco->CenterWidth3(k,j,0,n1-1,cwidth);
       // get the optical depth across the cell
       for(int i=0; i<n1; ++i){
         Real eddzz=pcr->prtensor_cr(PC33,k,j,i);
-        Real totsigma = 1.0/(1.0/pcr->sigma_diff(2,k,j,i) 
+        Real totsigma = 1.0/(1.0/pcr->sigma_diff(2,k,j,i)
                            + 1.0/pcr->sigma_adv(2,k,j,i));
         Real tauz = taufact_ * totsigma * cwidth(i);
         tauz = tauz * tauz/(2.0 * eddzz);
@@ -117,43 +117,43 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
         if(tauz < 1.e-3)
           diffv = sqrt((1.0 - 0.5* tauz));
 
-        pcr->v_diff(2,k,j,i) = pcr->vmax * sqrt(eddzz) * diffv;            
+        pcr->v_diff(2,k,j,i) = pcr->vmax * sqrt(eddzz) * diffv;
       }
 
       // rotate the v_diff vector to the local coordinate
       for(int i=0; i<n1; ++i){
         InvRotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
-                     pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i), 
+                     pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),
                      pcr->v_diff(0,k,j,i),pcr->v_diff(1,k,j,i),
                      pcr->v_diff(2,k,j,i));
-        
+
 	// take the absolute value
         // Also add the Alfven velocity for the streaming flux
         pcr->v_diff(0,k,j,i) = fabs(pcr->v_diff(0,k,j,i));
-        pcr->v_diff(1,k,j,i) = fabs(pcr->v_diff(1,k,j,i));                          
+        pcr->v_diff(1,k,j,i) = fabs(pcr->v_diff(1,k,j,i));
         pcr->v_diff(2,k,j,i) = fabs(pcr->v_diff(2,k,j,i));
       }
-      
+
       // need to add additional sound speed for stability
       for(int i=0; i<n1; ++i){
-         Real cr_sound_x = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC11,k,j,i) 
-                                  * u_cr(k,j,i)/w(IDN,k,j,i)); 
+         Real cr_sound_x = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC11,k,j,i)
+                                  * u_cr(k,j,i)/w(IDN,k,j,i));
 
 	 pcr->v_diff(0,k,j,i) += cr_sound_x;
 
-         Real cr_sound_y = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC22,k,j,i) 
+         Real cr_sound_y = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC22,k,j,i)
                                   * u_cr(k,j,i)/w(IDN,k,j,i));
 
          pcr->v_diff(1,k,j,i) += cr_sound_y;
 
-         Real cr_sound_z = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC33,k,j,i) 
-                                  * u_cr(k,j,i)/w(IDN,k,j,i)); 
-           
+         Real cr_sound_z = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC33,k,j,i)
+                                  * u_cr(k,j,i)/w(IDN,k,j,i));
+
          pcr->v_diff(2,k,j,i) += cr_sound_z;
       }
     }
   }
-     
+
   //--------------------------------------------------------------------------------------
   // i-direction
   // set the loop limits
@@ -161,7 +161,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
   for (int k=kl; k<=ku; ++k){
     for (int j=jl; j<=ju; ++j){
       // First, need to do reconstruction
-      // to reconstruct Ec, Fc, vel, v_a and 
+      // to reconstruct Ec, Fc, vel, v_a and
       // return Ec,Fc and signal speed at left and right state
       if(reconstruct_order == 1){
         DonorCellX1(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,wl,wr,
@@ -178,7 +178,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
       }
 
       // calculate the flux
-      CRFlux(CRF1, k, j, is, ie+1, wl, wr, vel_l, vel_r, eddl, eddr,  
+      CRFlux(CRF1, k, j, is, ie+1, wl, wr, vel_l, vel_r, eddl, eddr,
                                              vdiff_l, vdiff_r, flx);
       // store the flux
       for(int n=0; n<NCR; ++n){
@@ -189,7 +189,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
       }
     }
   }
-    
+
   // j-direction
   if(pmb->block_size.nx2 > 1){
     il=is; iu=ie; kl=ks; ku=ke;
@@ -212,9 +212,9 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
         }
 
         // calculate the flux
-        CRFlux(CRF2, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr, 
+        CRFlux(CRF2, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr,
                                                 vdiff_l, vdiff_r, flx);
-        
+
         // store the flux
         for(int n=0; n<NCR; ++n){
 #pragma omp simd
@@ -248,7 +248,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
         // calculate the flux
         CRFlux(CRF3, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr,
                                                vdiff_l, vdiff_r, flx);
-        
+
         // store the flux
         for(int n=0; n<NCR; ++n){
 #pragma omp simd
@@ -405,7 +405,7 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
 //  Adds flux divergence to weighted average of conservative variables from
 //  previous step(s) of time integrator algorithm
 void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_cr,
-		                              AthenaArray<Real> &u, const Real wght, 
+		                              AthenaArray<Real> &u, const Real wght,
 					      AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
   CosmicRay *pcr=pmb->pcr;
   Coordinates *pco = pmb->pcoord;
@@ -413,10 +413,10 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
   AthenaArray<Real> &x1flux=pcr->flux[X1DIR];
   AthenaArray<Real> &x2flux=pcr->flux[X2DIR];
   AthenaArray<Real> &x3flux=pcr->flux[X3DIR];
-  
+
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-  
+
   Real dt = pmb->pmy_mesh->dt;
 
   AthenaArray<Real> x1area, x2area, x2area_p1, x3area, x3area_p1, vol, dflx;
@@ -427,10 +427,10 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
   x3area_p1.InitWithShallowCopy(x3face_area_p1_);
   vol.InitWithShallowCopy(cell_volume_);
   dflx.InitWithShallowCopy(flx_);
-    
-  for (int k=ks; k<=ke; ++k) { 
+
+  for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
-      // calculate x1-flux divergence 
+      // calculate x1-flux divergence
       pmb->pcoord->Face1Area(k,j,is,ie+1,x1area);
       for(int n=0; n<NCR; ++n){
 #pragma omp simd
@@ -471,13 +471,13 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
           u_cr(n,k,j,i) -= wght*dt*dflx(n,i)/vol(i);
         }
       }
-      
+
       // Check that cosmic ray energy density is always positive
       for(int i=is; i<=ie; ++i){
         if(u_cr(CRE,k,j,i) < TINY_NUMBER)
           u_cr(CRE,k,j,i) = TINY_NUMBER;
       }
-    
+
     }// end j
   }// end k
 
