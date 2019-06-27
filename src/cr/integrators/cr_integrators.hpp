@@ -4,7 +4,7 @@
 // Athena++ classes headers
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
-#include "../cr.hpp" 
+#include "../cr.hpp"
 #include "../../task_list/task_list.hpp"
 
 // Forward Declarations
@@ -19,76 +19,78 @@ class CRIntegrator {
   public:
   CRIntegrator(CosmicRay *pcr, ParameterInput *pin);
   ~CRIntegrator();
-  
+
   CosmicRay *pmy_cr;
 
-  void AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
-                      AthenaArray<Real> &w, AthenaArray<Real> &u_cr);
-
-  void CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w, AthenaArray<Real> &bcc, 
+  // Functions called by the time integrator in order
+  void CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w, AthenaArray<Real> &bcc,
 		       AthenaArray<Real> &u_cr, int reconstruct_order);
+
+  void WeightedAveU(MeshBlock* pmb, AthenaArray<Real> &u_out,
+         		        AthenaArray<Real> &u_in1, AthenaArray<Real> &u_in2,
+         		        const Real wght[3]);
 
   void AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_cr,
                                   AthenaArray<Real> &u, const Real wght,
                                   AthenaArray<Real> &w, AthenaArray<Real> &bcc);
 
-  void WeightedAveU(MeshBlock* pmb, AthenaArray<Real> &u_out, 
-		    AthenaArray<Real> &u_in1, AthenaArray<Real> &u_in2, 
-		    const Real wght[3]);
-  
-  void CRFlux(int dir, int k, int j, int il, int iu, AthenaArray<Real> &w_l, 
-              AthenaArray<Real> &w_r, AthenaArray<Real> &vel_l, 
-	      AthenaArray<Real> &vel_r, AthenaArray<Real> &eddl, 
-	      AthenaArray<Real> &eddr, AthenaArray<Real> &vdiff_l, 
+  void AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
+                      AthenaArray<Real> &w, AthenaArray<Real> &u_cr);
+
+  // Helper functions
+  void CRFlux(int dir, int k, int j, int il, int iu, AthenaArray<Real> &w_l,
+              AthenaArray<Real> &w_r, AthenaArray<Real> &vel_l,
+	      AthenaArray<Real> &vel_r, AthenaArray<Real> &eddl,
+	      AthenaArray<Real> &eddr, AthenaArray<Real> &vdiff_l,
 	      AthenaArray<Real> &vdiff_r, AthenaArray<Real> &flx);
 
   void DonorCellX1(const int k, const int j,
                    const int il, const int iu, const AthenaArray<Real> &u_cr,
-                   const AthenaArray<Real> &prim, const AthenaArray<Real> &edd, 
-                   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
+                   const AthenaArray<Real> &prim, const AthenaArray<Real> &edd,
+                   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r,
                    AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
-                   AthenaArray<Real> &eddl, AthenaArray<Real> &eddr);   
-                                  
+                   AthenaArray<Real> &eddl, AthenaArray<Real> &eddr);
+
   void DonorCellX2(const int k, const int j,
                    const int il, const int iu, const AthenaArray<Real> &u_cr,
-                   const AthenaArray<Real> &prim, const AthenaArray<Real> &edd, 
-                   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
+                   const AthenaArray<Real> &prim, const AthenaArray<Real> &edd,
+                   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r,
                    AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
-                   AthenaArray<Real> &eddl, AthenaArray<Real> &eddr);   
+                   AthenaArray<Real> &eddl, AthenaArray<Real> &eddr);
 
   void DonorCellX3(const int k, const int j,
                    const int il, const int iu, const AthenaArray<Real> &u_cr,
                    const AthenaArray<Real> &prim, const AthenaArray<Real> &edd,
-                   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
+                   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r,
                    AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
-                   AthenaArray<Real> &eddl, AthenaArray<Real> &eddr);  
+                   AthenaArray<Real> &eddl, AthenaArray<Real> &eddr);
 
   void PieceWiseLinear(const int k, const int j,
                        const int il, const int iu, AthenaArray<Real> &u_cr,
                        AthenaArray<Real> &prim, AthenaArray<Real> &edd,
-                       AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, 
-                       AthenaArray<Real> &v_l, AthenaArray<Real> &v_r, 
-                       AthenaArray<Real> &eddl, AthenaArray<Real> &eddr, 
+                       AthenaArray<Real> &w_l, AthenaArray<Real> &w_r,
+                       AthenaArray<Real> &v_l, AthenaArray<Real> &v_r,
+                       AthenaArray<Real> &eddl, AthenaArray<Real> &eddr,
 		       int dir);
 
-  void GetOneVariableX1(const int k, const int j, const int il, const int iu, 
-		        const AthenaArray<Real> &q, AthenaArray<Real> &ql, 
+  void GetOneVariableX1(const int k, const int j, const int il, const int iu,
+		        const AthenaArray<Real> &q, AthenaArray<Real> &ql,
 			AthenaArray<Real> &qr);
 
-  void GetOneVariableX2(const int k, const int j, 
-                        const int il, const int iu, const AthenaArray<Real> &q, 
+  void GetOneVariableX2(const int k, const int j,
+                        const int il, const int iu, const AthenaArray<Real> &q,
                         AthenaArray<Real> &ql, AthenaArray<Real> &qr);
 
-  void GetOneVariableX3(const int k, const int j, 
-                        const int il, const int iu, const AthenaArray<Real> &q, 
+  void GetOneVariableX3(const int k, const int j,
+                        const int il, const int iu, const AthenaArray<Real> &q,
                         AthenaArray<Real> &ql, AthenaArray<Real> &qr);
 
-  void RotateVec(const Real sint, const Real cost, 
-                 const Real sinp, const Real cosp, 
+  void RotateVec(const Real sint, const Real cost,
+                 const Real sinp, const Real cosp,
                  Real &v1, Real &v2, Real &v3);
 
-  void InvRotateVec(const Real sint, const Real cost, 
-                    const Real sinp, const Real cosp, 
+  void InvRotateVec(const Real sint, const Real cost,
+                    const Real sinp, const Real cosp,
                     Real &v1, Real &v2, Real &v3);
 
   private:
