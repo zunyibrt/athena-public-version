@@ -32,8 +32,8 @@ void DefaultDiff(MeshBlock *pmb, AthenaArray<Real> &u_cr,
 #pragma omp simd
       for (int i=il; i<=iu; ++i) {
         pcr->sigma_diff(0,k,j,i) = pcr->sigma_diffusion;
-        pcr->sigma_diff(1,k,j,i) = pcr->sigma_diffusion;
-        pcr->sigma_diff(2,k,j,i) = pcr->sigma_diffusion;
+        pcr->sigma_diff(1,k,j,i) = pcr->max_opacity;
+        pcr->sigma_diff(2,k,j,i) = pcr->max_opacity;
       }
     }
   }
@@ -124,7 +124,7 @@ void DefaultDiff(MeshBlock *pmb, AthenaArray<Real> &u_cr,
                                       (1.0 + pcr->prtensor_cr(PC11,k,j,i)) *
                                       (1.0/pcr->vmax) * u_cr(CRE,k,j,i));
         }
-	      pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
+	pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
         pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
 
       }//end i
