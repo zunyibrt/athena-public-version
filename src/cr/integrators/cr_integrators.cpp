@@ -12,6 +12,7 @@ CRIntegrator::CRIntegrator(CosmicRay *pcr, ParameterInput *pin) {
 
   taufact_ = pin->GetOrAddReal("cr","taucell",1.0);
   vel_flx_flag_ = pin->GetOrAddInteger("cr","vflx",1);
+
   int nthreads = pcr->pmy_block->pmy_mesh->GetNumMeshThreads();
   int ncells1 = pcr->pmy_block->block_size.nx1 + 2*(NGHOST);
   int ncells2 = 1;
@@ -26,9 +27,9 @@ CRIntegrator::CRIntegrator(CosmicRay *pcr, ParameterInput *pin) {
   eddr_.NewAthenaArray(nthreads,6,ncells1);
   wl_.NewAthenaArray(nthreads,(NCR),ncells1);
   wr_.NewAthenaArray(nthreads,(NCR),ncells1);
-    
+
   cwidth_.NewAthenaArray(nthreads,ncells1);
-  
+
   x1face_area_.NewAthenaArray(nthreads,ncells1+1);
   if(pcr->pmy_block->block_size.nx2 > 1) {
     x2face_area_.NewAthenaArray(nthreads,ncells1);
@@ -60,7 +61,7 @@ CRIntegrator::~CRIntegrator()
   wr_.DeleteAthenaArray();
 
   cwidth_.DeleteAthenaArray();
-  
+
   x1face_area_.DeleteAthenaArray();
   if(pmy_cr->pmy_block->block_size.nx2 > 1) {
     x2face_area_.DeleteAthenaArray();
@@ -76,57 +77,42 @@ CRIntegrator::~CRIntegrator()
   ec_source_.DeleteAthenaArray();
 }
 
-void CRIntegrator::RotateVec(const Real sint, const Real cost, 
-                             const Real sinp, const Real cosp, 
+void CRIntegrator::RotateVec(Real const sint, Real const cost,
+                             Real const sinp, Real const cosp,
                              Real &v1, Real &v2, Real &v3) {
-  // vel1, vel2, vel3 are input
-  // v1, v2, v3 are output
-  // The two rotation matrices are: 
-  // R_1 =
-  // [cos_p  sin_p 0]
-  // [-sin_p cos_p 0]
-  // [0       0    1]
-  //
-  // R_2 =
-  // [sin_t  0 cos_t]
-  // [0      1    0]
-  // [-cos_t 0 sin_t]
+  // Applies the transformation R2*R1*v in place
+  // The two rotation matrices are:
+  // R_1 =                  R_2 =
+  // [cos_p  sin_p 0]       [sin_t  0 cos_t]
+  // [-sin_p cos_p 0]       [0      1    0]
+  // [0       0    1]       [-cos_t 0 sin_t]
 
-
-  // First apply R1
+  // Apply R1
   Real newv1 =  cosp * v1 + sinp * v2;
   v2 = -sinp * v1 + cosp * v2;
 
-  // Then apply R2
+  // Apply R2
   v1 =  sint * newv1 + cost * v3;
   Real newv3 = -cost * newv1 + sint * v3;
   v3 = newv3;
 }
 
-void CRIntegrator::InvRotateVec(const Real sint, const Real cost, 
-                                const Real sinp, const Real cosp, 
+void CRIntegrator::InvRotateVec(Real const sint, Real const cost,
+                                Real const sinp, Real const cosp,
                                 Real &v1, Real &v2, Real &v3) {
-  // vel1, vel2, vel3 are input
-  // v1, v2, v3 are output
+  // Applies the inverse transformation R1_inv*R2_inv*v in place
   // The two rotation matrices are:
-  // R_1^-1=
-  // [cos_p  -sin_p 0]
-  // [sin_p cos_p 0]
-  // [0       0    1]
-  //
-  // R_2^-1=
-  // [sin_t  0 -cos_t]
-  // [0      1    0]
-  // [cos_t 0 sin_t]
+  // R1_inv=                R_2_inv=
+  // [cos_p  -sin_p 0]      [sin_t  0 -cos_t]
+  // [sin_p cos_p 0]        [0      1    0]
+  // [0       0    1]       [cos_t 0 sin_t]
 
-
-  // First apply R2^-1
+  // Apply R2_inv
   Real newv1 = sint * v1 - cost * v3;
   v3 = cost * v1 + sint * v3;
 
-  // Then apply R1^-1
+  // Apply R1_inv
   v1 = cosp * newv1 - sinp * v2;
   Real newv2 = sinp * newv1 + cosp * v2;
   v2 = newv2;
 }
-

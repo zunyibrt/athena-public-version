@@ -16,8 +16,7 @@
 
 // Default Diffusion Function
 void DefaultDiff(MeshBlock *pmb, AthenaArray<Real> &u_cr,
-                 AthenaArray<Real> &prim, AthenaArray<Real> &bcc, Real dt)
-{
+                 AthenaArray<Real> &prim, AthenaArray<Real> &bcc, Real dt) {
   CosmicRay *pcr=pmb->pcr;
 
   int il=pmb->is-1, iu=pmb->ie+1;
@@ -138,13 +137,13 @@ void DefaultCRTensor(MeshBlock *pmb, AthenaArray<Real> &prim) {
 
   int nz1 = pmb->block_size.nx1 + 2*(NGHOST);
   int nz2 = pmb->block_size.nx2;
-  if(nz2 > 1) nz2 += 2*(NGHOST);
+  if (nz2 > 1) nz2 += 2*(NGHOST);
   int nz3 = pmb->block_size.nx3;
-  if(nz3 > 1) nz3 += 2*(NGHOST);
+  if (nz3 > 1) nz3 += 2*(NGHOST);
 
-  for(int k=0; k<nz3; ++k){
-    for(int j=0; j<nz2; ++j){
-      for(int i=0; i<nz1; ++i){
+  for (int k=0; k<nz3; ++k) {
+    for (int j=0; j<nz2; ++j) {
+      for (int i=0; i<nz1; ++i) {
         // Isotropic Pressure of 1/3
 	      pcr->prtensor_cr(PC11,k,j,i) = 1.0/3.0;
         pcr->prtensor_cr(PC22,k,j,i) = 1.0/3.0;

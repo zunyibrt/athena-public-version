@@ -1,10 +1,7 @@
 #ifndef CR_HPP
 #define CR_HPP
 
-// C++ Header
-#include <string>
-
-// Athena++ classes headers
+// Athena++ Headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 
@@ -13,7 +10,7 @@ class MeshBlock;
 class ParameterInput;
 class CRIntegrator;
 
-// Prototype for user-defined diffusion coefficient
+// Function pointers for user-defined diffusion coefficient
 typedef void (*CR_t)(MeshBlock *pmb, AthenaArray<Real> &prim);
 typedef void (*CROpa_t)(MeshBlock *pmb, AthenaArray<Real> &u_cr,
                         AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
@@ -26,21 +23,19 @@ enum {PC11=0, PC22=1, PC33=2, PC12=3, PC13=4, PC23=5};
 
 // CosmicRay data structure and methods
 class CosmicRay {
-  friend class CRIntegrator;
-
   public:
   // Constructor/Destructor
   CosmicRay(MeshBlock *pmb, ParameterInput *pin);
   ~CosmicRay();
 
-  // Arrays storing CR energy densities
-  // Extra arrays are for use during time integration
-  AthenaArray<Real> u_cr, u_cr1, u_cr2;
+  // CR Energy Density
+  AthenaArray<Real> u_cr;
 
-  // Store the flux during CR Transport, also needed for refinement
+  // CR Flux Tensor
+  // In units of (1/vmax)
   AthenaArray<Real> flux[3];
 
-  // Cosmic Ray Pressure Tensor
+  // CR Pressure Tensor
   AthenaArray<Real> prtensor_cr;
 
   // Diffusion coefficients for normal diffusion and advection terms
@@ -61,15 +56,18 @@ class CosmicRay {
   // Pointer to Integrator
   CRIntegrator *pcrintegrator;
 
-  // Enroll a user-defined diffusion function in problem generators
-  void EnrollDiffFunction(CROpa_t MyDiffFunction);
-
-  // Enroll a user-defined CR tensor function
-  void EnrollCRTensorFunction(CR_t MyTensorFunction);
-
-  // Functions for updating the Diffusion and CR Tensor
+  // Function Pointers to user defined Diffusion and CR Tensor Functions
   CROpa_t UpdateDiff;
   CR_t UpdateCRTensor;
+
+  // Enroll a user-defined Diffusion Function
+  void EnrollDiffFunction(CROpa_t MyDiffFunction);
+
+  // Enroll a user-defined CR Tensor function
+  void EnrollCRTensorFunction(CR_t MyTensorFunction);
+
+  // Extra CR energy density arrays are for use during time integration
+  AthenaArray<Real> u_cr1, u_cr2;
 
   // Arrays to store intermediate results
   AthenaArray<Real> cwidth;
@@ -80,4 +78,4 @@ class CosmicRay {
                                // of B direction
 };
 
-#endif
+#endif // CR_HPP

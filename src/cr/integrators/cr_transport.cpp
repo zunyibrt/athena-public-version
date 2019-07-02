@@ -20,9 +20,12 @@
 #include "../../coordinates/coordinates.hpp"
 #include "cr_integrators.hpp"
 
-void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
-		                   AthenaArray<Real> &bcc, AthenaArray<Real> &u_cr,
-				               int reconstruct_order) {
+void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
+                                   AthenaArray<Real> &w,
+		                               AthenaArray<Real> &bcc,
+                                   AthenaArray<Real> &u_cr,
+				                           int reconstruct_order)
+{
   CosmicRay *pcr=pmy_cr;
   Coordinates *pco = pmb->pcoord;
 
@@ -341,8 +344,8 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
               pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
             }
 
-            Real sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i) +
-                           1.0/pcr->sigma_adv(0,k,j,i));
+           Real sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
+                              +1.0/pcr->sigma_adv(0,k,j,i));
 
             Real vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
             Real vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
@@ -363,22 +366,18 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
             Real fr3 = u_cr(CRF3,k,j,i);
 
             // perform rotation
-            RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
-                      pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),vtotx,vtoty,vtotz);
+            Real sint_b = pcr->b_angle(0,k,j,i);
+            Real cost_b = pcr->b_angle(1,k,j,i);
+            Real sinp_b = pcr->b_angle(2,k,j,i);
+            Real cosp_b = pcr->b_angle(3,k,j,i);
 
-            RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
-                      pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),dpcdx,dpcdy,dpcdz);
-
-            RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
-                      pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),v1,v2,v3);
-
-
-            RotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
-                      pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),fr1,fr2,fr3);
-
+            RotateVec(sint_b,cost_b,sinp_b,cosp_b,vtotx,vtoty,vtotz);
+            RotateVec(sint_b,cost_b,sinp_b,cosp_b,dpcdx,dpcdy,dpcdz);
+            RotateVec(sint_b,cost_b,sinp_b,cosp_b,v1,v2,v3);
+            RotateVec(sint_b,cost_b,sinp_b,cosp_b,fr1,fr2,fr3);
 
             // only calculate v_dot_gradpc perpendicular to B
-            // perpendicular direction only has flow velocity, no streaming velocity
+            // perpendicular direction only has flow velocity, no streaming
             Real v_dot_gradpc = v2 * dpcdy + v3 * dpcdz;
 
             Real fxx = pcr->prtensor_cr(PC11,k,j,i);
@@ -395,17 +394,72 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb, AthenaArray<Real> &w,
 }
 
 //----------------------------------------------------------------------------------------
+//  Compute weighted average of cell-averaged U in time integrator step
+void CRIntegrator::WeightedAveU(MeshBlock* pmb,
+                                AthenaArray<Real> &u_out,
+                                AthenaArray<Real> &u_in1,
+                                AthenaArray<Real> &u_in2,
+                                const Real weights[3])
+{
+  // consider every possible simplified form of weighted sum operator:
+  // U = a*U + b*U1 + c*U2
+  // if c=0, c=b=0, or c=b=a=0 (in that order) to avoid extra FMA operations
+  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
+  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
+
+  if (weights[2] != 0.0) {
+    for (int n=0; n<NCR; ++n) {
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_out(n,k,j,i) = weights[0]*u_out(n,k,j,i) +
+                             weights[1]*u_in1(n,k,j,i) +
+                             weights[2]*u_in2(n,k,j,i);
+    } } } }
+  } else { // do not dereference u_in2
+    if (weights[1] != 0.0) {
+      for (int n=0; n<NCR; ++n) {
+        for (int k=ks; k<=ke; ++k) {
+          for (int j=js; j<=je; ++j) {
+#pragma omp simd
+            for (int i=is; i<=ie; ++i) {
+              u_out(n,k,j,i) = weights[0]*u_out(n,k,j,i) +
+                               weights[1]*u_in1(n,k,j,i);
+      } } } }
+    } else { // do not dereference u_in1
+      if (weights[0] != 0.0) {
+        for (int n=0; n<NCR; ++n) {
+          for (int k=ks; k<=ke; ++k) {
+            for (int j=js; j<=je; ++j) {
+#pragma omp simd
+              for (int i=is; i<=ie; ++i) {
+                u_out(n,k,j,i) = weights[0]*u_out(n,k,j,i);
+        } } } }
+      } else { // directly initialize u_out to 0
+        for (int n=0; n<NCR; ++n) {
+          for (int k=ks; k<=ke; ++k) {
+            for (int j=js; j<=je; ++j) {
+#pragma omp simd
+              for (int i=is; i<=ie; ++i) {
+                u_out(n,k,j,i) = 0.0;
+        } } } }
+      }
+    }
+  }
+  return;
+}
+
+//----------------------------------------------------------------------------------------
 //  Adds flux divergence to weighted average of conservative variables from
 //  previous step(s) of time integrator algorithm
-void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_cr,
-		                              AthenaArray<Real> &u, const Real wght,
-					      AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
-  CosmicRay *pcr=pmb->pcr;
-  Coordinates *pco = pmb->pcoord;
-
-  AthenaArray<Real> &x1flux=pcr->flux[X1DIR];
-  AthenaArray<Real> &x2flux=pcr->flux[X2DIR];
-  AthenaArray<Real> &x3flux=pcr->flux[X3DIR];
+void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb,
+                                              AthenaArray<Real> &u_cr,
+                                              Real const weight)
+{
+  AthenaArray<Real> &x1flux=pmb->pcr->flux[X1DIR];
+  AthenaArray<Real> &x2flux=pmb->pcr->flux[X2DIR];
+  AthenaArray<Real> &x3flux=pmb->pcr->flux[X3DIR];
 
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
@@ -423,120 +477,61 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> 
 
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
+
       // calculate x1-flux divergence
       pmb->pcoord->Face1Area(k,j,is,ie+1,x1area);
-      for(int n=0; n<NCR; ++n){
+      for (int n=0; n<NCR; ++n) {
 #pragma omp simd
-        for(int i=is; i<=ie; ++i){
-          dflx(n,i) = (x1area(i+1) *x1flux(n,k,j,i+1) - x1area(i)*x1flux(n,k,j,i));
-        }// end i
-      }// End n
+        for (int i=is; i<=ie; ++i) {
+          dflx(n,i) = x1area(i+1)*x1flux(n,k,j,i+1) -
+                      x1area(i)*x1flux(n,k,j,i);
+        }
+      }
 
-     // calculate x2-flux
+      // calculate x2-flux divergence
       if (pmb->block_size.nx2 > 1) {
-        pmb->pcoord->Face2Area(k,j  ,is,ie,x2area   );
+        pmb->pcoord->Face2Area(k,j,is,ie,x2area);
         pmb->pcoord->Face2Area(k,j+1,is,ie,x2area_p1);
-      for(int n=0; n<NCR; ++n){
+        for (int n=0; n<NCR; ++n) {
 #pragma omp simd
-        for(int i=is; i<=ie; ++i){
-            dflx(n,i) += (x2area_p1(i)*x2flux(n,k,j+1,i) - x2area(i)*x2flux(n,k,j,i));
+          for (int i=is; i<=ie; ++i) {
+            dflx(n,i) += x2area_p1(i)*x2flux(n,k,j+1,i) -
+                         x2area(i)*x2flux(n,k,j,i);
           }
         }
-      }// end nx2
+      }
 
       // calculate x3-flux divergence
       if (pmb->block_size.nx3 > 1) {
-        pmb->pcoord->Face3Area(k  ,j,is,ie,x3area   );
+        pmb->pcoord->Face3Area(k,j,is,ie,x3area);
         pmb->pcoord->Face3Area(k+1,j,is,ie,x3area_p1);
-        for(int n=0; n<NCR; ++n){
+        for (int n=0; n<NCR; ++n) {
 #pragma omp simd
-          for(int i=is; i<=ie; ++i){
-            dflx(n,i) += (x3area_p1(i)*x3flux(n,k+1,j,i) - x3area(i)*x3flux(n,k,j,i));
+          for (int i=is; i<=ie; ++i) {
+            dflx(n,i) += x3area_p1(i)*x3flux(n,k+1,j,i) -
+                         x3area(i)*x3flux(n,k,j,i);
           }
         }
-      }// end nx3
+      }
 
-      // update variable with flux divergence
+      // update variables with flux divergence
       pmb->pcoord->CellVolume(k,j,is,ie,vol);
       for(int n=0; n<NCR; ++n){
 #pragma omp simd
         for(int i=is; i<=ie; ++i){
-          u_cr(n,k,j,i) -= wght*dt*dflx(n,i)/vol(i);
+          u_cr(n,k,j,i) -= weight*dt*dflx(n,i)/vol(i);
         }
       }
 
       // Check that cosmic ray energy density is always positive
+#pragma omp simd
       for(int i=is; i<=ie; ++i){
-        if(u_cr(CRE,k,j,i) < TINY_NUMBER)
-          u_cr(CRE,k,j,i) = TINY_NUMBER;
+        u_cr(CRE,k,j,i) = std::max(u_cr(CRE,k,j,i), TINY_NUMBER);
       }
 
     }// end j
   }// end k
 
-}
-
-//----------------------------------------------------------------------------------------
-//  Compute weighted average of cell-averaged U in time integrator step
-void CRIntegrator::WeightedAveU(MeshBlock* pmb, AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                         AthenaArray<Real> &u_in2, const Real wght[3]) {
-  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-
-  // consider every possible simplified form of weighted sum operator:
-  // U = a*U + b*U1 + c*U2
-  // if c=0, c=b=0, or c=b=a=0 (in that order) to avoid extra FMA operations
-
-  // u_in2 may be an unallocated AthenaArray if using a 2S time integrator
-  if (wght[2] != 0.0) {
-    for (int n=0; n<NCR; ++n) {
-      for (int k=ks; k<=ke; ++k) {
-        for (int j=js; j<=je; ++j) {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i)
-                + wght[2]*u_in2(n,k,j,i);
-          }
-        }
-      }
-    }
-  } else { // do not dereference u_in2
-    if (wght[1] != 0.0) {
-      for (int n=0; n<NCR; ++n) {
-        for (int k=ks; k<=ke; ++k) {
-          for (int j=js; j<=je; ++j) {
-#pragma omp simd
-            for (int i=is; i<=ie; ++i) {
-              u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i) + wght[1]*u_in1(n,k,j,i);
-            }
-          }
-        }
-      }
-    } else { // do not dereference u_in1
-      if (wght[0] != 0.0) {
-        for (int n=0; n<NCR; ++n) {
-          for (int k=ks; k<=ke; ++k) {
-            for (int j=js; j<=je; ++j) {
-#pragma omp simd
-              for (int i=is; i<=ie; ++i) {
-                u_out(n,k,j,i) = wght[0]*u_out(n,k,j,i);
-              }
-            }
-          }
-        }
-      } else { // directly initialize u_out to 0
-        for (int n=0; n<NCR; ++n) {
-          for (int k=ks; k<=ke; ++k) {
-            for (int j=js; j<=je; ++j) {
-#pragma omp simd
-              for (int i=is; i<=ie; ++i) {
-                u_out(n,k,j,i) = 0.0;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return;
+  // Note: Coordinate source terms not implemented, will not work for
+  //       non-cartesian geometries
 }
