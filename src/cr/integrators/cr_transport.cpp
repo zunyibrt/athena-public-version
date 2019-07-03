@@ -1,17 +1,3 @@
-// C++ headers
-#include <algorithm>
-
-// MPI/OpenMP header
-#ifdef MPI_PARALLEL
-#include <mpi.h>
-#endif
-
-// OpenMP header
-#ifdef OPENMP_PARALLEL
-#include <omp.h>
-#endif
-
-// Athena++ headers
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "../../parameter_input.hpp"
@@ -26,34 +12,29 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
                                    AthenaArray<Real> &u_cr,
 				                           int reconstruct_order)
 {
-  CosmicRay *pcr=pmy_cr;
-  Coordinates *pco = pmb->pcoord;
+  auto pcr = pmy_cr;
+  auto &x1flux = pcr->flux[X1DIR];
+  auto &x2flux = pcr->flux[X2DIR];
+  auto &x3flux = pcr->flux[X3DIR];
 
-  Real invvmax=1.0/pcr->vmax;
-
-  AthenaArray<Real> &x1flux=pcr->flux[X1DIR];
-  AthenaArray<Real> &x2flux=pcr->flux[X2DIR];
-  AthenaArray<Real> &x3flux=pcr->flux[X3DIR];
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-  int il, iu, jl, ju, kl, ku;
 
-  // First, calculate com-moving flux
   int n1 = pmb->block_size.nx1 + 2*NGHOST;
   int n2 = pmb->block_size.nx2;
+  if (n2 > 1) n2 += 2*NGHOST;
   int n3 = pmb->block_size.nx3;
-  if(pmb->block_size.nx2 > 1) n2 += 2*NGHOST;
-  if(pmb->block_size.nx3 > 1) n3 += 2*NGHOST;
+  if (n3 > 1) n3 += 2*NGHOST;
 
-  AthenaArray<Real> flx, vel_l, vel_r, wl, wr, vdiff_l, vdiff_r, eddl, eddr;
+  AthenaArray<Real> flx, vel_l, vel_r, wl, wr, vdiff_l, vdiff_r, crptl, crptr;
   AthenaArray<Real> cwidth;
   flx.InitWithShallowCopy(flx_);
   vel_l.InitWithShallowCopy(vel_l_);
   vel_r.InitWithShallowCopy(vel_r_);
   vdiff_l.InitWithShallowCopy(vdiff_l_);
   vdiff_r.InitWithShallowCopy(vdiff_r_);
-  eddl.InitWithShallowCopy(eddl_);
-  eddr.InitWithShallowCopy(eddr_);
+  crptl.InitWithShallowCopy(crptl_);
+  crptr.InitWithShallowCopy(crptr_);
   wl.InitWithShallowCopy(wl_);
   wr.InitWithShallowCopy(wr_);
   cwidth.InitWithShallowCopy(cwidth_);
@@ -71,87 +52,82 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
   // First, calculate the diffusion velocity along three coordinate system
   for (int k=0; k<n3; ++k){
     for(int j=0; j<n2; ++j){
-
       // diffusion velocity along the direction of sigma vector
       // We first assume B is along x coordinate
-      // Then rotate according to B direction to the actual acooridnate
-
-      for(int i=0; i<n1; ++i){
-        Real eddxx=pcr->prtensor_cr(PC11,k,j,i);
+      // Then rotate according to B direction to the actual coordinate
+      for (int i=0; i<n1; ++i) {
+        Real crpt_xx = pcr->prtensor_cr(PC11,k,j,i);
         Real totsigma = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
                            + 1.0/pcr->sigma_adv(0,k,j,i));
-        Real taux = taufact_ * totsigma * pco->dx1f(i);
-        taux = taux * taux/(2.0 * eddxx);
+        Real taux = totsigma * pmb->pcoord->dx1f(i);
+        taux = taux * taux/(2.0 * crpt_xx);
         Real diffv = sqrt((1.0 - exp(-taux)) / taux);
 
-	if(taux < 1.e-3)
-          diffv = sqrt((1.0 - 0.5* taux));
-
-        pcr->v_diff(0,k,j,i) = pcr->vmax * sqrt(eddxx) * diffv;
+	      if(taux < 1.e-3) diffv = sqrt((1.0 - 0.5* taux));
+        pcr->v_diff(0,k,j,i) = pcr->vmax * sqrt(crpt_xx) * diffv;
       }
 
       // y direction
-      pco->CenterWidth2(k,j,0,n1-1,cwidth);
-      // get the optical depth across the cell
-      for(int i=0; i<n1; ++i){
-        Real eddyy=pcr->prtensor_cr(PC22,k,j,i);
+      pmb->pcoord->CenterWidth2(k,j,0,n1-1,cwidth);
+      for (int i=0; i<n1; ++i) {
+        Real crpt_yy = pcr->prtensor_cr(PC22,k,j,i);
         Real totsigma = 1.0/(1.0/pcr->sigma_diff(1,k,j,i)
                            + 1.0/pcr->sigma_adv(1,k,j,i));
-        Real tauy = taufact_ * totsigma * cwidth(i);
-        tauy = tauy * tauy/(2.0 * eddyy);
+        Real tauy = totsigma * cwidth(i);
+        tauy = tauy * tauy/(2.0 * crpt_yy);
         Real diffv = sqrt((1.0 - exp(-tauy)) / tauy);
 
-        if(tauy < 1.e-3)
-          diffv = sqrt((1.0 - 0.5* tauy));
+        if(tauy < 1.e-3) diffv = sqrt((1.0 - 0.5* tauy));
+        pcr->v_diff(1,k,j,i) = pcr->vmax * sqrt(crpt_yy) * diffv;
+      }
 
-        pcr->v_diff(1,k,j,i) = pcr->vmax * sqrt(eddyy) * diffv;
-      }// end i
       // z direction
-      pco->CenterWidth3(k,j,0,n1-1,cwidth);
-      // get the optical depth across the cell
-      for(int i=0; i<n1; ++i){
-        Real eddzz=pcr->prtensor_cr(PC33,k,j,i);
+      pmb->pcoord->CenterWidth3(k,j,0,n1-1,cwidth);
+      for (int i=0; i<n1; ++i) {
+        Real crpt_zz = pcr->prtensor_cr(PC33,k,j,i);
         Real totsigma = 1.0/(1.0/pcr->sigma_diff(2,k,j,i)
                            + 1.0/pcr->sigma_adv(2,k,j,i));
-        Real tauz = taufact_ * totsigma * cwidth(i);
-        tauz = tauz * tauz/(2.0 * eddzz);
+        Real tauz = totsigma * cwidth(i);
+        tauz = tauz * tauz/(2.0 * crpt_zz);
         Real diffv = sqrt((1.0 - exp(-tauz)) / tauz);
 
-        if(tauz < 1.e-3)
-          diffv = sqrt((1.0 - 0.5* tauz));
-
-        pcr->v_diff(2,k,j,i) = pcr->vmax * sqrt(eddzz) * diffv;
+        if(tauz < 1.e-3) diffv = sqrt((1.0 - 0.5* tauz));
+        pcr->v_diff(2,k,j,i) = pcr->vmax * sqrt(crpt_zz) * diffv;
       }
 
       // rotate the v_diff vector to the local coordinate
-      for(int i=0; i<n1; ++i){
-        InvRotateVec(pcr->b_angle(0,k,j,i),pcr->b_angle(1,k,j,i),
-                     pcr->b_angle(2,k,j,i),pcr->b_angle(3,k,j,i),
-                     pcr->v_diff(0,k,j,i),pcr->v_diff(1,k,j,i),
+      for (int i=0; i<n1; ++i) {
+        Real sint_b = pcr->b_angle(0,k,j,i);
+        Real cost_b = pcr->b_angle(1,k,j,i);
+        Real sinp_b = pcr->b_angle(2,k,j,i);
+        Real cosp_b = pcr->b_angle(3,k,j,i);
+        InvRotateVec(sint_b,cost_b,sinp_b,cosp_b,
+                     pcr->v_diff(0,k,j,i),
+                     pcr->v_diff(1,k,j,i),
                      pcr->v_diff(2,k,j,i));
+      }
 
-	// take the absolute value
+	      // take the absolute value
         // Also add the Alfven velocity for the streaming flux
+#pragma omp simd
+      for (int i=0; i<n1; ++i) {
         pcr->v_diff(0,k,j,i) = fabs(pcr->v_diff(0,k,j,i));
         pcr->v_diff(1,k,j,i) = fabs(pcr->v_diff(1,k,j,i));
         pcr->v_diff(2,k,j,i) = fabs(pcr->v_diff(2,k,j,i));
       }
 
       // need to add additional sound speed for stability
-      for(int i=0; i<n1; ++i){
-         Real cr_sound_x = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC11,k,j,i)
-                                  * u_cr(k,j,i)/w(IDN,k,j,i));
+      for (int i=0; i<n1; ++i) {
+         Real cr_sound_x = sqrt((4.0/3.0) * pcr->prtensor_cr(PC11,k,j,i)
+                           * u_cr(k,j,i) / w(IDN,k,j,i));
+        pcr->v_diff(0,k,j,i) += cr_sound_x;
 
-	 pcr->v_diff(0,k,j,i) += cr_sound_x;
-
-         Real cr_sound_y = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC22,k,j,i)
-                                  * u_cr(k,j,i)/w(IDN,k,j,i));
-
+         Real cr_sound_y = sqrt((4.0/3.0) * pcr->prtensor_cr(PC22,k,j,i) *
+                           u_cr(k,j,i) / w(IDN,k,j,i));
          pcr->v_diff(1,k,j,i) += cr_sound_y;
 
-         Real cr_sound_z = vel_flx_flag_ * sqrt((4.0/3.0) * pcr->prtensor_cr(PC33,k,j,i)
-                                  * u_cr(k,j,i)/w(IDN,k,j,i));
-
+         Real cr_sound_z = sqrt((4.0/3.0) * pcr->prtensor_cr(PC33,k,j,i) *
+                           u_cr(k,j,i)/w(IDN,k,j,i));
          pcr->v_diff(2,k,j,i) += cr_sound_z;
       }
     }
@@ -159,31 +135,28 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
 
   //--------------------------------------------------------------------------------------
   // i-direction
-  // set the loop limits
-  jl=js, ju=je, kl=ks, ku=ke;
-  for (int k=kl; k<=ku; ++k){
-    for (int j=jl; j<=ju; ++j){
-      // First, need to do reconstruction
-      // to reconstruct Ec, Fc, vel, v_a and
-      // return Ec,Fc and signal speed at left and right state
+  for (int k=ks; k<=ke; ++k){
+    for (int j=js; j<=je; ++j){
+      // Reconstruction of Ec, Fc, and vel
       if(reconstruct_order == 1){
-        DonorCellX1(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                      vel_l,vel_r, eddl, eddr);
-      }else {
-        PieceWiseLinear(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                   vel_l, vel_r, eddl, eddr, 0);
+        DonorCellX1(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,
+                    wl,wr,vel_l,vel_r,crptl,crptr);
+      } else {
+        PieceWiseLinear(k,j,is,ie+1,u_cr,w,pcr->prtensor_cr,
+                        wl,wr,vel_l,vel_r,crptl,crptr,X1DIR);
       }
-      // get the optical depth across the cell
+
 #pragma omp simd
       for(int i=is; i<=ie+1; ++i){
         vdiff_l(i) = pcr->v_diff(0,k,j,i-1);
         vdiff_r(i) = pcr->v_diff(0,k,j,i);
       }
 
-      // calculate the flux
-      CRFlux(CRF1, k, j, is, ie+1, wl, wr, vel_l, vel_r, eddl, eddr,
-                                             vdiff_l, vdiff_r, flx);
-      // store the flux
+      // Riemann Solver
+      CRFlux(CRF1, k, j, is, ie+1, wl, wr, vel_l, vel_r,
+             crptl, crptr, vdiff_l, vdiff_r, flx);
+
+      // Store computed flux
       for(int n=0; n<NCR; ++n){
 #pragma omp simd
         for(int i=is; i<=ie+1; ++i){
@@ -191,34 +164,32 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
         }
       }
     }
-  }
+  }//finish i-direction
 
   // j-direction
-  if(pmb->block_size.nx2 > 1){
-    il=is; iu=ie; kl=ks; ku=ke;
-    for (int k=kl; k<=ku; ++k){
+  if (pmb->block_size.nx2 > 1) {
+    for (int k=ks; k<=ke; ++k){
       for (int j=js; j<=je+1; ++j){
-
+        // Reconstruction of Ec, Fc, and vel
         if(reconstruct_order == 1){
-          DonorCellX2(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                   vel_l,vel_r, eddl, eddr);
-        }else {
-          PieceWiseLinear(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                   vel_l, vel_r, eddl, eddr, 1);
+          DonorCellX2(k,j,is,ie,u_cr,w,pcr->prtensor_cr,
+                      wl,wr,vel_l,vel_r,crptl,crptr);
+        } else {
+          PieceWiseLinear(k,j,is,ie,u_cr,w,pcr->prtensor_cr,
+                          wl,wr,vel_l,vel_r,crptl,crptr,X2DIR);
         }
 
-        // get the optical depth across the cell
 #pragma omp simd
-        for(int i=il; i<=iu; ++i){
+        for(int i=is; i<=ie; ++i){
           vdiff_l(i) = pcr->v_diff(1,k,j-1,i);
           vdiff_r(i) = pcr->v_diff(1,k,j,i);
         }
 
-        // calculate the flux
-        CRFlux(CRF2, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr,
-                                                vdiff_l, vdiff_r, flx);
+        // Riemann Solver
+        CRFlux(CRF2, k, j, is, ie, wl, wr, vel_l, vel_r,
+               crptl, crptr, vdiff_l, vdiff_r, flx);
 
-        // store the flux
+        // Store computed flux
         for(int n=0; n<NCR; ++n){
 #pragma omp simd
           for(int i=is; i<=ie; ++i){
@@ -230,29 +201,28 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
   }// finish j direction
 
   // k-direction
-  if(pmb->block_size.nx3 > 1){
-    il=is; iu=ie; jl=js; ju=je;
+  if (pmb->block_size.nx3 > 1) {
     for (int k=ks; k<=ke+1; ++k){
-      for (int j=jl; j<=ju; ++j){
+      for (int j=js; j<=je; ++j){
+        // Reconstruction of Ec, Fc, and vel
         if(reconstruct_order == 1){
-          DonorCellX3(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                      vel_l,vel_r, eddl, eddr);
-        }else {
-          PieceWiseLinear(k,j,il,iu,u_cr,w,pcr->prtensor_cr,wl,wr,
-                                     vel_l, vel_r, eddl, eddr, 2);
+          DonorCellX3(k,j,is,ie,u_cr,w,pcr->prtensor_cr,
+                      wl,wr,vel_l,vel_r,crptl,crptr);
+        } else {
+          PieceWiseLinear(k,j,is,ie,u_cr,w,pcr->prtensor_cr,
+                          wl,wr,vel_l,vel_r,crptl,crptr,X3DIR);
         }
 
-        // get the optical depth across the cell
 #pragma omp simd
-        for(int i=il; i<=iu; ++i){
+        for(int i=is; i<=ie; ++i){
           vdiff_l(i) = pcr->v_diff(2,k-1,j,i);
           vdiff_r(i) = pcr->v_diff(2,k,j,i);
         }
-        // calculate the flux
-        CRFlux(CRF3, k, j, il, iu, wl, wr, vel_l, vel_r, eddl, eddr,
-                                               vdiff_l, vdiff_r, flx);
+        // Riemann Solver
+        CRFlux(CRF3, k, j, is, ie, wl, wr, vel_l, vel_r,
+               crptl, crptr, vdiff_l, vdiff_r, flx);
 
-        // store the flux
+        // Store computed flux
         for(int n=0; n<NCR; ++n){
 #pragma omp simd
           for(int i=is; i<=ie; ++i){
@@ -267,127 +237,126 @@ void CRIntegrator::CalculateFluxes(MeshBlock *pmb,
   //--------------------------------------------------------------------------------//
     for (int k=ks; k<=ke; ++k) {
       for (int j=js; j<=je; ++j) {
-        pmb->pcoord->Face1Area(k,j,is,ie+1,x1area);
+
         pmb->pcoord->CellVolume(k,j,is,ie,vol);
+
         // x1 direction
-        for(int n=0; n<3; ++n){
+        pmb->pcoord->Face1Area(k,j,is,ie+1,x1area);
+        for (int n=0; n<3; ++n) {
 #pragma omp simd
-          for(int i=is; i<=ie; ++i){
+          for (int i=is; i<=ie; ++i) {
             grad_pc_(n,k,j,i) = (x1area(i+1)*x1flux(CRF1+n,k,j,i+1)
-                               - x1area(i)  *x1flux(CRF1+n,k,j,i))/vol(i);
+                                 - x1area(i)*x1flux(CRF1+n,k,j,i))/vol(i);
           }
         }
 
-        if(pmb->block_size.nx2 > 1){
-          pmb->pcoord->Face2Area(k,j  ,is,ie,x2area   );
+        // x2 direction
+        if (pmb->block_size.nx2 > 1) {
+          pmb->pcoord->Face2Area(k,j,is,ie,x2area);
           pmb->pcoord->Face2Area(k,j+1,is,ie,x2area_p1);
-          for(int n=0; n<3; ++n){
+          for (int n=0; n<3; ++n) {
 #pragma omp simd
-            for(int i=is; i<=ie; ++i){
+            for (int i=is; i<=ie; ++i) {
               grad_pc_(n,k,j,i) += (x2area_p1(i)*x2flux(CRF1+n,k,j+1,i)
-                                 -  x2area(i)  *x2flux(CRF1+n,k,j,i))/vol(i);
-            }// end i
-          }
-        }// end nx2
-
-        if(pmb->block_size.nx3 > 1){
-          pmb->pcoord->Face3Area(k  ,j,is,ie,x3area   );
-          pmb->pcoord->Face3Area(k+1,j,is,ie,x3area_p1);
-          for(int n=0; n<3; ++n){
-#pragma omp simd
-            for(int i=is; i<=ie; ++i){
-              grad_pc_(n,k,j,i) += (x3area_p1(i) *x3flux(CRF1+n,k+1,j,i)
-                                  - x3area(i)*x3flux(CRF1+n,k,j,i))/vol(i);
+                                    - x2area(i)*x2flux(CRF1+n,k,j,i))/vol(i);
             }
           }
-        }// end nx3
+        }
+
+        // x3 direction
+        if (pmb->block_size.nx3 > 1) {
+          pmb->pcoord->Face3Area(k,j,is,ie,x3area);
+          pmb->pcoord->Face3Area(k+1,j,is,ie,x3area_p1);
+          for (int n=0; n<3; ++n) {
+#pragma omp simd
+            for (int i=is; i<=ie; ++i) {
+              grad_pc_(n,k,j,i) += (x3area_p1(i)*x3flux(CRF1+n,k+1,j,i)
+                                    - x3area(i)*x3flux(CRF1+n,k,j,i))/vol(i);
+            }
+          }
+        }
 
 
         for(int n=0; n<3; ++n){
 #pragma omp simd
           for(int i=is; i<=ie; ++i){
-            grad_pc_(n,k,j,i) *= invvmax;
+            grad_pc_(n,k,j,i) /= pcr->vmax;
           }
         }
 
         // calculate source term and add it explicitly for Ec
-        for(int i=is; i<=ie; ++i){
-            Real inv_sqrt_rho = 1.0/sqrt(w(IDN,k,j,i));
+        for (int i=is; i<=ie; ++i) {
+          // Compute Streaming velocityies
+          Real sqrt_rho = sqrt(w(IDN,k,j,i));
+          Real va1 = bcc(IB1,k,j,i)/sqrt_rho;
+          Real va2 = bcc(IB2,k,j,i)/sqrt_rho;
+          Real va3 = bcc(IB3,k,j,i)/sqrt_rho;
 
-            Real pb= bcc(IB1,k,j,i)*bcc(IB1,k,j,i)
-                    +bcc(IB2,k,j,i)*bcc(IB2,k,j,i)
-                    +bcc(IB3,k,j,i)*bcc(IB3,k,j,i);
+          Real b_grad_pc = bcc(IB1,k,j,i) * grad_pc_(0,k,j,i) +
+                           bcc(IB2,k,j,i) * grad_pc_(1,k,j,i) +
+                           bcc(IB3,k,j,i) * grad_pc_(2,k,j,i);
+          Real dpc_sign = 0.0;
+          if (fabs(b_grad_pc) > TINY_NUMBER) dpc_sign = SIGN(b_grad_pc);
 
-            Real b_grad_pc = bcc(IB1,k,j,i) * grad_pc_(0,k,j,i)
-                           + bcc(IB2,k,j,i) * grad_pc_(1,k,j,i)
-                           + bcc(IB3,k,j,i) * grad_pc_(2,k,j,i);
+          pcr->v_adv(0,k,j,i) = -va1 * dpc_sign;
+          pcr->v_adv(1,k,j,i) = -va2 * dpc_sign;
+          pcr->v_adv(2,k,j,i) = -va3 * dpc_sign;
 
-            Real va1 = bcc(IB1,k,j,i) * inv_sqrt_rho;
-            Real va2 = bcc(IB2,k,j,i) * inv_sqrt_rho;
-            Real va3 = bcc(IB3,k,j,i) * inv_sqrt_rho;
+          // Compute sigma advection wrt B Field
+          Real btot = sqrt(bcc(IB1,k,j,i)*bcc(IB1,k,j,i) +
+                           bcc(IB2,k,j,i)*bcc(IB2,k,j,i) +
+                           bcc(IB3,k,j,i)*bcc(IB3,k,j,i));
+          Real va = btot/sqrt_rho;
+          if (va > TINY_NUMBER) {
+            pcr->sigma_adv(0,k,j,i) = pcr->vmax * fabs(b_grad_pc) /
+                                      (btot * va * u_cr(CRE,k,j,i) *
+                                      (1.0 + pcr->prtensor_cr(PC11,k,j,i)));
+          }
 
-            Real va = sqrt(pb) * inv_sqrt_rho;
-            Real dpc_sign = 0.0;
+          // Compute total sigma
+          Real sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
+                            +1.0/pcr->sigma_adv(0,k,j,i));
 
-            if(b_grad_pc > TINY_NUMBER) dpc_sign = 1.0;
-            else if(-b_grad_pc > TINY_NUMBER) dpc_sign = -1.0;
+          Real v1 = w(IVX,k,j,i);
+          Real v2 = w(IVY,k,j,i);
+          Real v3 = w(IVZ,k,j,i);
 
-            pcr->v_adv(0,k,j,i) = -va1 * dpc_sign;
-            pcr->v_adv(1,k,j,i) = -va2 * dpc_sign;
-            pcr->v_adv(2,k,j,i) = -va3 * dpc_sign;
+          Real vtotx = v1 + pcr->v_adv(0,k,j,i);
+          Real vtoty = v2 + pcr->v_adv(1,k,j,i);
+          Real vtotz = v3 + pcr->v_adv(2,k,j,i);
 
-            if(va > TINY_NUMBER){
-              pcr->sigma_adv(0,k,j,i) = fabs(b_grad_pc)/(sqrt(pb) * va *
-                                        (1.0 + pcr->prtensor_cr(PC11,k,j,i))
-                                        * invvmax * u_cr(CRE,k,j,i));
-              pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
-              pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
-            }
+          Real dpcdx = grad_pc_(0,k,j,i);
+          Real dpcdy = grad_pc_(1,k,j,i);
+          Real dpcdz = grad_pc_(2,k,j,i);
 
-           Real sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
-                              +1.0/pcr->sigma_adv(0,k,j,i));
+          // explicit method needs to use CR flux from previous step
+          Real fr1 = u_cr(CRF1,k,j,i);
+          Real fr2 = u_cr(CRF2,k,j,i);
+          Real fr3 = u_cr(CRF3,k,j,i);
 
-            Real vtotx = w(IVX,k,j,i) + pcr->v_adv(0,k,j,i);
-            Real vtoty = w(IVY,k,j,i) + pcr->v_adv(1,k,j,i);
-            Real vtotz = w(IVZ,k,j,i) + pcr->v_adv(2,k,j,i);
+          // Rotate to frame of bfield
+          Real sint_b = pcr->b_angle(0,k,j,i);
+          Real cost_b = pcr->b_angle(1,k,j,i);
+          Real sinp_b = pcr->b_angle(2,k,j,i);
+          Real cosp_b = pcr->b_angle(3,k,j,i);
 
-            Real v1 = w(IVX,k,j,i);
-            Real v2 = w(IVY,k,j,i);
-            Real v3 = w(IVZ,k,j,i);
+          RotateVec(sint_b,cost_b,sinp_b,cosp_b,vtotx,vtoty,vtotz);
+          RotateVec(sint_b,cost_b,sinp_b,cosp_b,dpcdx,dpcdy,dpcdz);
+          RotateVec(sint_b,cost_b,sinp_b,cosp_b,v1,v2,v3);
+          RotateVec(sint_b,cost_b,sinp_b,cosp_b,fr1,fr2,fr3);
 
-            Real dpcdx = grad_pc_(0,k,j,i);
-            Real dpcdy = grad_pc_(1,k,j,i);
-            Real dpcdz = grad_pc_(2,k,j,i);
+          // only calculate v_dot_gradpc perpendicular to B
+          // perpendicular direction only has flow velocity, no streaming
+          Real v_dot_gradpc = v2 * dpcdy + v3 * dpcdz;
 
+          Real fxx = pcr->prtensor_cr(PC11,k,j,i);
+          Real fxy = pcr->prtensor_cr(PC12,k,j,i);
+          Real fxz = pcr->prtensor_cr(PC13,k,j,i);
 
-            // explicit method needs to use CR flux from previous step
-            Real fr1 = u_cr(CRF1,k,j,i);
-            Real fr2 = u_cr(CRF2,k,j,i);
-            Real fr3 = u_cr(CRF3,k,j,i);
+          Real fr_cm1 = fr1 - (v1 * (1.0 + fxx) + v2 * fxy + v3 * fxz)
+                        * u_cr(CRE,k,j,i) / pcr->vmax;
 
-            // perform rotation
-            Real sint_b = pcr->b_angle(0,k,j,i);
-            Real cost_b = pcr->b_angle(1,k,j,i);
-            Real sinp_b = pcr->b_angle(2,k,j,i);
-            Real cosp_b = pcr->b_angle(3,k,j,i);
-
-            RotateVec(sint_b,cost_b,sinp_b,cosp_b,vtotx,vtoty,vtotz);
-            RotateVec(sint_b,cost_b,sinp_b,cosp_b,dpcdx,dpcdy,dpcdz);
-            RotateVec(sint_b,cost_b,sinp_b,cosp_b,v1,v2,v3);
-            RotateVec(sint_b,cost_b,sinp_b,cosp_b,fr1,fr2,fr3);
-
-            // only calculate v_dot_gradpc perpendicular to B
-            // perpendicular direction only has flow velocity, no streaming
-            Real v_dot_gradpc = v2 * dpcdy + v3 * dpcdz;
-
-            Real fxx = pcr->prtensor_cr(PC11,k,j,i);
-            Real fxy = pcr->prtensor_cr(PC12,k,j,i);
-            Real fxz = pcr->prtensor_cr(PC13,k,j,i);
-
-            Real fr_cm1 = fr1 - (v1 * (1.0 + fxx) + v2 * fxy + v3 * fxz)
-                          * u_cr(CRE,k,j,i) * invvmax;
-
-            ec_source_(k,j,i) = (v_dot_gradpc - vtotx * sigma_x * fr_cm1);
+          ec_source_(k,j,i) = (v_dot_gradpc - vtotx * sigma_x * fr_cm1);
         }// end i
       }// end k
     }// end j
@@ -457,9 +426,9 @@ void CRIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb,
                                               AthenaArray<Real> &u_cr,
                                               Real const weight)
 {
-  AthenaArray<Real> &x1flux=pmb->pcr->flux[X1DIR];
-  AthenaArray<Real> &x2flux=pmb->pcr->flux[X2DIR];
-  AthenaArray<Real> &x3flux=pmb->pcr->flux[X3DIR];
+  auto &x1flux = pmb->pcr->flux[X1DIR];
+  auto &x2flux = pmb->pcr->flux[X2DIR];
+  auto &x3flux = pmb->pcr->flux[X3DIR];
 
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;

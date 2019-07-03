@@ -1,4 +1,3 @@
-// Athena++ headers
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 #include "../../mesh/mesh.hpp"
@@ -11,7 +10,7 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, Real const dt,
                                   AthenaArray<Real> &w,
                                   AthenaArray<Real> &u_cr)
 {
-  CosmicRay *pcr = pmb->pcr;
+  auto pcr = pmb->pcr;
 
   for (int k=pmb->ks; k<=pmb->ke; ++k) {
     for (int j=pmb->js; j<=pmb->je; ++j) {
