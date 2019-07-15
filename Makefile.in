@@ -44,7 +44,10 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     src/pgen/$(PROBLEM_FILE) \
 	     src/pgen/default_pgen.cpp \
 	     $(wildcard src/cr/*.cpp) \
-             $(wildcard src/cr/integrators/*.cpp)
+             $(wildcard src/cr/integrators/*.cpp) \
+             $(wildcard src/hydrp/conduction/*.cpp) \
+             $(wildcard src/hydro/conduction/integrators/*.cpp)
+
 
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))
