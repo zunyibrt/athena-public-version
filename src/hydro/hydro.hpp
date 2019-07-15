@@ -11,13 +11,13 @@
 // Athena++ classes headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-//#include "../task_list/task_list.hpp"
 
 class MeshBlock;
 class ParameterInput;
 class HydroSourceTerms;
 class HydroDiffusion;
 struct IntegratorWeight;
+class ThermalConduction;
 
 //! \class Hydro
 //  \brief hydro data and functions
@@ -40,6 +40,8 @@ public:
 
   HydroSourceTerms *psrc;
   HydroDiffusion *phdif;
+
+  ThermalConduction *ptc;
 
   // functions
   Real NewBlockTimeStep(void);    // computes new timestep on a MeshBlock
