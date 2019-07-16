@@ -12,6 +12,7 @@
 #include "../mesh/mesh.hpp"
 #include "../cr/cr.hpp"
 #include "bvals.hpp"
+#include "../hydro/conduction/tc.hpp"
 
 //----------------------------------------------------------------------------------------
 //! \fn void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
@@ -79,6 +80,20 @@ void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
             u_cr(n,k,js-j,i) = sign * u_cr(n,k,js+j-1,i);
+          }
+        }
+      }
+    }
+  }// End CR
+
+  if(TC_ENABLED){
+    for (int n=1; n<=(NTC); ++n) {
+      Real sign = flip_across_pole_tc[n] ? -1.0 : 1.0;
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=(NGHOST); ++j) {
+  #pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(n,k,js-j,i) = sign * u_tc(n,k,js+j-1,i);
           }
         }
       }
@@ -155,6 +170,20 @@ void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
             u_cr(n,k,(je+j),i) = sign * u_cr(n,k,je-j+1,i);
+          }
+        }
+      }
+    }
+  }
+
+  if(TC_ENABLED){
+    for (int n=1; n<=(NTC); ++n) {
+      Real sign = flip_across_pole_tc[n] ? -1.0 : 1.0;
+      for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=(NGHOST); ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(n,k,(je+j),i) = sign * u_tc(n,k,je-j+1,i);
           }
         }
       }

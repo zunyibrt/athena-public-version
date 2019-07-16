@@ -270,6 +270,11 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     os += pcr->u_cr.GetSizeInBytes();
   }
 
+  if(TC_ENABLED){
+    memcpy(phydro->ptc->u_tc.data(), &(mbdata[os]),  phydro->ptc->u_tc.GetSizeInBytes());
+    phydro->ptc->u_tc1 = phydro->ptc->u_tc;
+    os += phydro->ptc->u_tc.GetSizeInBytes();
+  }
 
   // load user MeshBlock data
   for (int n=0; n<nint_user_meshblock_data_; n++) {
@@ -413,6 +418,10 @@ size_t MeshBlock::GetBlockSizeInBytes(void) {
   // NEW_PHYSICS: modify the size counter here when new physics is introduced
   if(CR_ENABLED){
     size+=pcr->u_cr.GetSizeInBytes();
+  }
+
+  if(TC_ENABLED){
+    size+=phydro->ptc->u_tc.GetSizeInBytes();
   }
 
   // calculate user MeshBlock data size

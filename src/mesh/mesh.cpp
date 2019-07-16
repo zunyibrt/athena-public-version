@@ -48,6 +48,7 @@
 #include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
 #include "../cr/cr.hpp"
+#include "../hydro/conduction/tc.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -1419,6 +1420,14 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
      }
   }
 
+  if (TC_ENABLED) {
+    for (int i=0; i<nmb; ++i) {
+      MeshBlock *pmb = pmb_array[i];
+      pmb->phydro->ptc->UpdateKappa(pmb, pmb->phydro->w,pmb->pfield->bcc);
+    }
+  }
+
+
   return;
 }
 
@@ -1838,6 +1847,11 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
     bsf2c += (bnx1/2)*((bnx2+1)/2)*((bnx3+1)/2)*NCR;
     bsc2f += (bnx1/2+2)*((bnx2+1)/2+2*f2)*((bnx3+1)/2+2*f3)*NCR;
   }
+  if(TC_ENABLED){
+    bssame += bnx1*bnx2*bnx3*NTC;
+    bsf2c += (bnx1/2)*((bnx2+1)/2)*((bnx3+1)/2)*NTC;
+    bsc2f += (bnx1/2+2)*((bnx2+1)/2+2*f2)*((bnx3+1)/2+2*f3)*NTC;
+  }
   bssame++; // for derefinement counter
 
   MPI_Request *req_send, *req_recv;
@@ -1903,6 +1917,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Pack4DData(pb->pcr->u_cr, sendbuf[k], 0, NCR-1,
                          pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
         }
+        if(TC_ENABLED){
+          BufferUtility::Pack4DData(pb->phydro->ptc->u_tc, sendbuf[k], 1, NTC,
+                         pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
         int *dcp = reinterpret_cast<int *>(&(sendbuf[k][p]));
         *dcp=pb->pmr->deref_count_;
         int tag=CreateAMRMPITag(nn-nslist[newrank[nn]], 0, 0, 0);
@@ -1936,6 +1954,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           }
 	  if(CR_ENABLED){
             BufferUtility::Pack4DData(pb->pcr->u_cr, sendbuf[k], 0, NCR-1,
+                                        is, ie, js, je, ks, ke, p);
+          }
+          if(TC_ENABLED){
+            BufferUtility::Pack4DData(pb->phydro->ptc->u_tc, sendbuf[k], 1, NTC,
                                         is, ie, js, je, ks, ke, p);
           }
           int tag=CreateAMRMPITag(nn+l-nslist[newrank[nn+l]], 0, 0, 0);
@@ -1973,6 +1995,14 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           pmr->RestrictCellCenteredValues(pb->pcr->u_cr, pmr->coarse_ucr_, 0, NCR-1,
           pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
           BufferUtility::Pack4DData(pmr->coarse_ucr_, sendbuf[k], 0, NCR-1,
+             pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
+
+        }
+        if(TC_ENABLED){
+
+          pmr->RestrictCellCenteredValues(pb->phydro->ptc->u_tc, pmr->coarse_untc_, 1, NTC,
+          pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, HYDRO_CONS);
+          BufferUtility::Pack4DData(pmr->coarse_untc_, sendbuf[k], 1, NTC,
              pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
 
         }
@@ -2096,6 +2126,20 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
             }}}
 
           }// end CR
+          if(TC_ENABLED){
+            pmr->RestrictCellCenteredValues(pob->phydro->ptc->u_tc, pmr->coarse_untc_,
+                 1, NTC, pob->cis, pob->cie, pob->cjs, pob->cje,
+                                      pob->cks, pob->cke, HYDRO_CONS);
+            AthenaArray<Real> &ntc_src=pmr->coarse_untc_;
+            AthenaArray<Real> &ntc_dst=pmb->phydro->ptc->u_tc;
+            for(int nv=1; nv<=NTC; nv++) {
+              for(int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
+                for(int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
+                  for(int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
+                    ntc_dst(nv, k, j, i)=ntc_src(nv, fk, fj, fi);
+            }}}
+
+          }// end thermal conduction
         }
       } else if ((loclist[on].level < newloc[n].level) &&
                  (ranklist[on]==Globals::my_rank)) {
@@ -2161,7 +2205,21 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                                  pob->cis, pob->cie, pob->cjs, pob->cje, pob->cks, pob->cke); 
 
         }// End CR
+        if(TC_ENABLED){
 
+          AthenaArray<Real> &ntc_src=pob->phydro->ptc->u_tc;
+          AthenaArray<Real> &ntc_dst=pmr->coarse_untc_;
+
+          for(int nv=1; nv<=NTC; nv++) {
+            for(int k=ks, ck=cks; k<=ke; k++, ck++) {
+              for(int j=js, cj=cjs; j<=je; j++, cj++) {
+                for(int i=is, ci=cis; i<=ie; i++, ci++)
+                  ntc_dst(nv, k, j, i)=ntc_src(nv, ck, cj, ci);
+          }}}
+          pmr->ProlongateCellCenteredValues(ntc_dst, pmb->phydro->ptc->u_tc, 1, NTC,
+                                  is, ie, js, je, ks, ke, HYDRO_CONS);
+
+        }// End thermal conduction
       }
     }
   }
@@ -2216,7 +2274,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
           BufferUtility::Unpack4DData(recvbuf[k], pb->pcr->u_cr, 0, NCR-1,
                          pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
         }
-
+        if(TC_ENABLED){
+          BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->ptc->u_tc, 1, NTC,
+                         pb->is, pb->ie, pb->js, pb->je, pb->ks, pb->ke, p);
+        }
         int *dcp=reinterpret_cast<int *>(&(recvbuf[k][p]));
         pb->pmr->deref_count_=*dcp;
         k++;
@@ -2258,7 +2319,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
             BufferUtility::Unpack4DData(recvbuf[k], pb->pcr->u_cr, 0, NCR-1,
                            is, ie, js, je, ks, ke, p);
           }
-
+          if(TC_ENABLED){
+            BufferUtility::Unpack4DData(recvbuf[k], pb->phydro->ptc->u_tc, 1, NTC,
+                           is, ie, js, je, ks, ke, p);
+          }
           k++;
         }
       } else { // c2f
@@ -2293,6 +2357,12 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
                                       0, NCR-1, is, ie, js, je, ks, ke, p);
           pmr->ProlongateCellCenteredValues(pmr->coarse_ucr_, pb->pcr->u_cr, 0, NCR-1,
 		                 pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
+        }
+        if(TC_ENABLED){
+          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_untc_,
+                                      1, NTC, is, ie, js, je, ks, ke, p);
+          pmr->ProlongateCellCenteredValues(pmr->coarse_untc_, pb->phydro->ptc->u_tc, 1, NTC,
+                                      is, ie, js, je, ks, ke,HYDRO_CONS);
         }
         k++;
       }
