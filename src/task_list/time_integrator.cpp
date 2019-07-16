@@ -211,6 +211,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
   pm->cfl_number = cfl_number;
 
   // Now assemble list of tasks for each stage of time integrator
+  uint64_t step_flag;
   {using namespace HydroIntegratorTaskNames; // NOLINT (build/namespace)
     AddTimeIntegratorTask(STARTUP_INT,NONE);
     AddTimeIntegratorTask(START_ALLRECV,STARTUP_INT);
@@ -226,11 +227,10 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     if (CR_ENABLED)
       AddTimeIntegratorTask(CALC_CRFLX,START_ALLRECV);
     if (TC_ENABLED){
-      AddTimeIntegratorTask(INI_TC,NONE);
-      AddTimeIntegratorTask(CALC_TCFLX,START_ALLRECV|INI_TC);
+      AddTimeIntegratorTask(CALC_TCFLX,START_ALLRECV);
     }
     if (pm->multilevel==true) { // SMR or AMR
-      uint64_t step_flag = CALC_HYDFLX;
+      step_flag = CALC_HYDFLX;
       if (CR_ENABLED)
         step_flag = (step_flag|CALC_CRFLX);
       if (TC_ENABLED)
@@ -257,7 +257,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     if (TC_ENABLED)
       AddTimeIntegratorTask(SRCTERM_TC,INT_TC);
 
-    uint64_t step_flag =  SRCTERM_HYD;
+    step_flag =  SRCTERM_HYD;
     if (CR_ENABLED)
       step_flag = (step_flag|SRCTERM_CR);
     if (TC_ENABLED)
@@ -328,7 +328,7 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     if (TC_ENABLED)
       AddTimeIntegratorTask(TC_OPACITY,PHY_BVAL);
 
-    uint64_t step_flag = PHY_BVAL;
+    step_flag = PHY_BVAL;
     if (CR_ENABLED)
       step_flag = (step_flag|CR_VAOPACITY);
     if (TC_ENABLED)
@@ -770,7 +770,8 @@ enum TaskStatus TimeIntegratorTaskList::FieldDiffusion(MeshBlock *pmb, int stage
 
 enum TaskStatus TimeIntegratorTaskList::HydroSend(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
-    pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, HYDRO_CONS);
+    pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, 
+                                                pmb->phydro->ptc->u_tc, HYDRO_CONS);
   } else {
     return TASK_FAIL;
   }
@@ -792,7 +793,8 @@ enum TaskStatus TimeIntegratorTaskList::FieldSend(MeshBlock *pmb, int stage) {
 enum TaskStatus TimeIntegratorTaskList::HydroReceive(MeshBlock *pmb, int stage) {
   bool ret;
   if (stage <= nstages) {
-    ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, HYDRO_CONS);
+    ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, 
+                                                       pmb->phydro->ptc->u_tc, HYDRO_CONS);
   } else {
     return TASK_FAIL;
   }
@@ -893,7 +895,7 @@ enum TaskStatus TimeIntegratorTaskList::Prolongation(MeshBlock *pmb, int stage) 
     // Scaled coefficient for RHS time-advance within stage
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     pbval->ProlongateBoundaries(phydro->w,  phydro->u,  pfield->b,  pfield->bcc,
-                                pcr->u_cr, t_end_stage, dt);
+                                pcr->u_cr, pmb->phydro->ptc->u_tc, t_end_stage, dt);
 
   } else {
     return TASK_FAIL;
@@ -945,7 +947,7 @@ enum TaskStatus TimeIntegratorTaskList::PhysicalBoundary(MeshBlock *pmb, int sta
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
 
     pbval->ApplyPhysicalBoundaries(phydro->w,  phydro->u,  pfield->b,  pfield->bcc,
-                                   pcr->u_cr, t_end_stage, dt);
+                                   pcr->u_cr, pmb->phydro->ptc->u_tc, t_end_stage, dt);
 
   } else {
     return TASK_FAIL;
@@ -1126,20 +1128,20 @@ enum TaskStatus TimeIntegratorTaskList::CRVAOpacity(MeshBlock *pmb, int stage)
 }
 
 // Task functions for Thermal Conduction
-enum TaskStatus TimeIntegratorTaskList::TCFluxes(MeshBlock *pmb, int step)
+enum TaskStatus TimeIntegratorTaskList::TCFluxes(MeshBlock *pmb, int stage)
 {
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=phydro->ptc;
+  ThermalConduction *ptc=pmb->phydro->ptc;
 
   if (stage <= nstages) {
     // why this specific if statement? not needed if pmb->precon->xorder is set to 1
     if((stage == 1) && (integrator == "vl2")) {
-      pcr->ptcintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, pcr->u_tc, 1);
+      ptc->ptcintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, ptc->u_tc, 1);
       return TASK_NEXT;
     } else {
       //Note, should make sure that pcrintegrator can handle order of 3, not True as of now
-      pcr->ptcintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, pcr->u_tc, pmb->precon->xorder);
+      ptc->ptcintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, ptc->u_tc, pmb->precon->xorder);
       return TASK_NEXT;
     }
   }
@@ -1150,7 +1152,7 @@ enum TaskStatus TimeIntegratorTaskList::TCIntegrate(MeshBlock *pmb, int stage)
 {
   Hydro *ph=pmb->phydro;
   Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=phydro->ptc;
+  ThermalConduction *ptc=pmb->phydro->ptc;
 
   if (stage <= nstages) {
     // u_tc1 = u_tc1 + delta*u_tc
@@ -1158,16 +1160,16 @@ enum TaskStatus TimeIntegratorTaskList::TCIntegrate(MeshBlock *pmb, int stage)
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    ptc->ptcintegrator->WeightedAveU(pmb, pcr->u_tc1,pcr->u_tc,pcr->u_tc2,ave_wghts);
+    ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc1,ptc->u_tc,ptc->u_tc2,ave_wghts);
 
     // u_tc = gamma_1*u_tc + gamma_2*u_tc1 + gamma_3*u_tc2
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-    ptc->ptcintegrator->WeightedAveU(pmb, pcr->u_tc,pcr->u_tc1,pcr->u_tc2,ave_wghts);
+    ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc,ptc->u_tc1,ptc->u_tc2,ave_wghts);
 
     // u_tc -= beta*dt*flux_density
-    ptc->ptcintegrator->AddFluxDivergenceToAverage(pmb, pcr->u_tc, ph->u, stage_wghts[stage-1].beta,
+    ptc->ptcintegrator->AddFluxDivergenceToAverage(pmb, ptc->u_tc, ph->u, stage_wghts[stage-1].beta,
                                                    ph->w, pfield->bcc);
     return TASK_NEXT;
   }
@@ -1179,11 +1181,11 @@ enum TaskStatus TimeIntegratorTaskList::TCSourceTerms(MeshBlock *pmb, int stage)
 {
   Hydro *ph=pmb->phydro;
   Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=phydro->ptc;
+  ThermalConduction *ptc=pmb->phydro->ptc;
 
   if (stage <= nstages) {
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    ptc->pcrintegrator->AddSourceTerms(pmb,dt,ph->u,ph->w,pcr->u_cr);
+    ptc->ptcintegrator->AddSourceTerms(pmb,dt,ph->u,ptc->u_tc);
   } else {
     return TASK_FAIL;
   }
@@ -1191,15 +1193,15 @@ enum TaskStatus TimeIntegratorTaskList::TCSourceTerms(MeshBlock *pmb, int stage)
 }
 
 
-enum TaskStatus TimeIntegratorTaskList::CRVAOpacity(MeshBlock *pmb, int stage)
+enum TaskStatus TimeIntegratorTaskList::TCOpacity(MeshBlock *pmb, int stage)
 {
   Hydro *phydro=pmb->phydro;
   Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=phydro->ptc;
+  ThermalConduction *ptc=pmb->phydro->ptc;
 
   if (stage <= nstages) {
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    ptc->UpdateKappa(pmb, phydro->w, pfrield->bcc);
+    ptc->UpdateKappa(pmb, phydro->w, pfield->bcc);
   } else {
     return TASK_FAIL;
   }

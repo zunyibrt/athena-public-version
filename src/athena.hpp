@@ -136,7 +136,8 @@ enum FluxCorrectionType {FLUX_HYDRO=0};
 // function pointer prototypes for user-defined modules set at runtime
 
 typedef void (*BValFunc_t)(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                           FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                           FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                           Real time, Real dt,
                            int is, int ie, int js, int je, int ks, int ke, int ngh);
 typedef int (*AMRFlagFunc_t)(MeshBlock *pmb);
 typedef Real (*MeshGenFunc_t)(Real x, RegionSize rs);

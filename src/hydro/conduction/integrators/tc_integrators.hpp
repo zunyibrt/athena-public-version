@@ -1,54 +1,47 @@
 #ifndef TCINTEGRATORS_HPP
 #define TCINTEGRATORS_HPP
-//======================================================================================
-// Athena++ astrophysical MHD code
-// Copyright (C) 2014 James M. Stone  <jmstone@princeton.edu>
-// See LICENSE file for full public license information.
-//======================================================================================
-//! \file radiation.hpp
-//  \brief definitions for Radiation class
-//======================================================================================
 
 // Athena++ classes headers
 #include "../../../athena.hpp"
 #include "../../../athena_arrays.hpp"
 #include "../../../task_list/task_list.hpp"
 
+// Forward Declarations
 class Hydro;
 class ParameterInput;
 class ThermalConduction;
 
-//! \class RadIntegrator
-//  \brief integrate algorithm for radiative transfer
-
-
+// Data Structure for TC Integrator
 class TCIntegrator {
   friend class ThermalConduction;
+
 public:
   TCIntegrator(ThermalConduction *ptc, ParameterInput *pin);
   ~TCIntegrator();
-  
+
   ThermalConduction *pmy_tc;
 
-    
-
-  void AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
-                                  AthenaArray<Real> &u_tc, const int step);
-
+  // Functions called by the time integrator in order
   void CalculateFluxes(MeshBlock *pmb,
-      AthenaArray<Real> &w, AthenaArray<Real> &bcc, AthenaArray<Real> &u_tc, 
+      AthenaArray<Real> &w, AthenaArray<Real> &bcc, AthenaArray<Real> &u_tc,
       int reconstruct_order);
 
+  void WeightedAveU(MeshBlock* pmb, AthenaArray<Real> &u_out,
+         		        AthenaArray<Real> &u_in1, AthenaArray<Real> &u_in2,
+         		        const Real wght[3]);
 
-  void FluxDivergence(MeshBlock *pmb, AthenaArray<Real> &w,
-                      AthenaArray<Real> &u_tc1, AthenaArray<Real> &u_tc2,
-                      const IntegratorWeight wght, AthenaArray<Real> &u_out);
+  void AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_tc,
+                                  AthenaArray<Real> &u, const Real wght,
+                                  AthenaArray<Real> &w, AthenaArray<Real> &bcc);
 
-  void TCFlux(int fdir, int il, int iu, 
+  void AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
+                                  AthenaArray<Real> &u_tc);
+  // Helper functions
+  void TCFlux(int fdir, int il, int iu,
       AthenaArray<Real> &t_l, AthenaArray<Real> &t_r,
       AthenaArray<Real> &rho_l, AthenaArray<Real> &rho_r,
-      AthenaArray<Real> &w_l, AthenaArray<Real> &w_r,  
-      AthenaArray<Real> &vdiff_l, AthenaArray<Real> &vdiff_r, 
+      AthenaArray<Real> &w_l, AthenaArray<Real> &w_r,
+      AthenaArray<Real> &vdiff_l, AthenaArray<Real> &vdiff_r,
                                       AthenaArray<Real> &flx);
 
 
@@ -57,8 +50,8 @@ public:
       AthenaArray<Real> &rho, AthenaArray<Real> &tgas,
       AthenaArray<Real> &rho_l, AthenaArray<Real> &rho_r,
       AthenaArray<Real> &t_l, AthenaArray<Real> &t_r,
-      AthenaArray<Real> &w_l, AthenaArray<Real> &w_r);   
-                                  
+      AthenaArray<Real> &w_l, AthenaArray<Real> &w_r);
+
   void DonorCellX2(const int k, const int j,
       const int il, const int iu, const AthenaArray<Real> &u_tc,
       AthenaArray<Real> &rho, AthenaArray<Real> &tgas,
@@ -82,25 +75,25 @@ public:
       AthenaArray<Real> &t_l, AthenaArray<Real> &t_r,
       AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, int fdir);
 
-        
-  void GetOneVariableX1(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
+
+  void GetOneVariableX1(const int k, const int j,
+      const int il, const int iu, const AthenaArray<Real> &q,
       AthenaArray<Real> &ql, AthenaArray<Real> &qr);
 
-  void GetOneVariableX2(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
+  void GetOneVariableX2(const int k, const int j,
+      const int il, const int iu, const AthenaArray<Real> &q,
       AthenaArray<Real> &ql, AthenaArray<Real> &qr);
 
-  void GetOneVariableX3(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
+  void GetOneVariableX3(const int k, const int j,
+      const int il, const int iu, const AthenaArray<Real> &q,
       AthenaArray<Real> &ql, AthenaArray<Real> &qr);
 
-  void RotateVec(const Real sint, const Real cost, 
-                 const Real sinp, const Real cosp, 
+  void RotateVec(const Real sint, const Real cost,
+                 const Real sinp, const Real cosp,
                      Real &v1, Real &v2, Real &v3);
 
-  void InvRotateVec(const Real sint, const Real cost, 
-                 const Real sinp, const Real cosp, 
+  void InvRotateVec(const Real sint, const Real cost,
+                 const Real sinp, const Real cosp,
                      Real &v1, Real &v2, Real &v3);
 
 

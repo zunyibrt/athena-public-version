@@ -1277,6 +1277,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
     Hydro *phydro;
     Field *pfield;
     CosmicRay *pcr;
+    ThermalConduction *ptc;
     BoundaryValues *pbval;
 
     // prepare to receive conserved variables
@@ -1292,7 +1293,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
     for (int i=0; i<nmb; ++i) {
       pmb=pmb_array[i]; 
       pbval=pmb->pbval;
-      pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, HYDRO_CONS);
+      pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, 
+                                             pmb->phydro->ptc->u_tc, HYDRO_CONS);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->SendFieldBoundaryBuffers(pmb->pfield->b);
     }
@@ -1301,7 +1303,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp for private(pmb,pbval)
     for (int i=0; i<nmb; ++i) {
       pmb=pmb_array[i]; pbval=pmb->pbval;
-      pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->u, pmb->pcr->u_cr, HYDRO_CONS);
+      pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->u, pmb->pcr->u_cr, 
+                                                        pmb->phydro->ptc->u_tc, HYDRO_CONS);
       if (MAGNETIC_FIELDS_ENABLED)
         pbval->ReceiveFieldBoundaryBuffersWithWait(pmb->pfield->b);
       // send and receive shearingbox boundary conditions
@@ -1324,14 +1327,16 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       for (int i=0; i<nmb; ++i) {
         pmb=pmb_array[i]; 
 	pbval=pmb->pbval;
-        pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->w, pcr->u_cr, HYDRO_PRIM);
+        pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->w, pcr->u_cr,
+                                               pmb->phydro->ptc->u_tc, HYDRO_PRIM);
       }
 
       // wait to receive AMR/SMR GR primitives
 #pragma omp for private(pmb,pbval)
       for (int i=0; i<nmb; ++i) {
         pmb=pmb_array[i]; pbval=pmb->pbval;
-        pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->w, pcr->u_cr, HYDRO_PRIM);
+        pbval->ReceiveCellCenteredBoundaryBuffersWithWait(pmb->phydro->w, pcr->u_cr, 
+                                                          pmb->phydro->ptc->u_tc, HYDRO_PRIM);
         pbval->ClearBoundaryForInit(false);
       }
     }
@@ -1340,9 +1345,10 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
 #pragma omp for private(pmb,pbval,phydro,pfield)
     for (int i=0; i<nmb; ++i) {
       pmb=pmb_array[i]; pbval=pmb->pbval, phydro=pmb->phydro, pfield=pmb->pfield, pcr=pmb->pcr;
+      ptc=pmb->phydro->ptc;
       if (multilevel==true)
         pbval->ProlongateBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc, pcr->u_cr,
-                                    time, 0.0);
+                                    ptc->u_tc, time, 0.0);
 
       int il=pmb->is, iu=pmb->ie, jl=pmb->js, ju=pmb->je, kl=pmb->ks, ku=pmb->ke;
       if (pbval->nblevel[1][1][0]!=-1) il-=NGHOST;
@@ -1359,7 +1365,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
                                       phydro->w, pfield->bcc, pmb->pcoord,
                                       il, iu, jl, ju, kl, ku);
       pbval->ApplyPhysicalBoundaries(phydro->w, phydro->u, pfield->b, pfield->bcc, pcr->u_cr,
-                                     time, 0.0);
+                                     ptc->u_tc, time, 0.0);
     }
 
     // Calc initial diffusion coefficients
@@ -2000,9 +2006,9 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         }
         if(TC_ENABLED){
 
-          pmr->RestrictCellCenteredValues(pb->phydro->ptc->u_tc, pmr->coarse_untc_, 1, NTC,
+          pmr->RestrictCellCenteredValues(pb->phydro->ptc->u_tc, pmr->coarse_utc_, 1, NTC,
           pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, HYDRO_CONS);
-          BufferUtility::Pack4DData(pmr->coarse_untc_, sendbuf[k], 1, NTC,
+          BufferUtility::Pack4DData(pmr->coarse_utc_, sendbuf[k], 1, NTC,
              pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke, p);
 
         }
@@ -2127,16 +2133,16 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 
           }// end CR
           if(TC_ENABLED){
-            pmr->RestrictCellCenteredValues(pob->phydro->ptc->u_tc, pmr->coarse_untc_,
+            pmr->RestrictCellCenteredValues(pob->phydro->ptc->u_tc, pmr->coarse_utc_,
                  1, NTC, pob->cis, pob->cie, pob->cjs, pob->cje,
-                                      pob->cks, pob->cke, HYDRO_CONS);
-            AthenaArray<Real> &ntc_src=pmr->coarse_untc_;
-            AthenaArray<Real> &ntc_dst=pmb->phydro->ptc->u_tc;
+                                      pob->cks, pob->cke);
+            AthenaArray<Real> &tc_src=pmr->coarse_utc_;
+            AthenaArray<Real> &tc_dst=pmb->phydro->ptc->u_tc;
             for(int nv=1; nv<=NTC; nv++) {
               for(int k=ks, fk=pob->cks; fk<=pob->cke; k++, fk++) {
                 for(int j=js, fj=pob->cjs; fj<=pob->cje; j++, fj++) {
                   for(int i=is, fi=pob->cis; fi<=pob->cie; i++, fi++)
-                    ntc_dst(nv, k, j, i)=ntc_src(nv, fk, fj, fi);
+                    tc_dst(nv, k, j, i)=tc_src(nv, fk, fj, fi);
             }}}
 
           }// end thermal conduction
@@ -2207,17 +2213,17 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
         }// End CR
         if(TC_ENABLED){
 
-          AthenaArray<Real> &ntc_src=pob->phydro->ptc->u_tc;
-          AthenaArray<Real> &ntc_dst=pmr->coarse_untc_;
+          AthenaArray<Real> &tc_src=pob->phydro->ptc->u_tc;
+          AthenaArray<Real> &tc_dst=pmr->coarse_utc_;
 
           for(int nv=1; nv<=NTC; nv++) {
             for(int k=ks, ck=cks; k<=ke; k++, ck++) {
               for(int j=js, cj=cjs; j<=je; j++, cj++) {
                 for(int i=is, ci=cis; i<=ie; i++, ci++)
-                  ntc_dst(nv, k, j, i)=ntc_src(nv, ck, cj, ci);
+                  tc_dst(nv, k, j, i)=tc_src(nv, ck, cj, ci);
           }}}
-          pmr->ProlongateCellCenteredValues(ntc_dst, pmb->phydro->ptc->u_tc, 1, NTC,
-                                  is, ie, js, je, ks, ke, HYDRO_CONS);
+          pmr->ProlongateCellCenteredValues(tc_dst, pmb->phydro->ptc->u_tc, 1, NTC,
+                                  is, ie, js, je, ks, ke);
 
         }// End thermal conduction
       }
@@ -2359,10 +2365,10 @@ void Mesh::AdaptiveMeshRefinement(ParameterInput *pin) {
 		                 pb->cis, pb->cie, pb->cjs, pb->cje, pb->cks, pb->cke);
         }
         if(TC_ENABLED){
-          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_untc_,
+          BufferUtility::Unpack4DData(recvbuf[k], pmr->coarse_utc_,
                                       1, NTC, is, ie, js, je, ks, ke, p);
-          pmr->ProlongateCellCenteredValues(pmr->coarse_untc_, pb->phydro->ptc->u_tc, 1, NTC,
-                                      is, ie, js, je, ks, ke,HYDRO_CONS);
+          pmr->ProlongateCellCenteredValues(pmr->coarse_utc_, pb->phydro->ptc->u_tc, 1, NTC,
+                                      is, ie, js, je, ks, ke);
         }
         k++;
       }

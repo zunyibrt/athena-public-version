@@ -192,7 +192,7 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
       }
       if(TC_ENABLED){
         tcssize=LoadCellCenteredBoundaryBufferSameLevel(src_tc, tcns, tcne,
-                                        &(sbuf[ssize+crssize]), nb, type);
+                                        &(sbuf[ssize+crssize]), nb);
       }
     }
     else if (nb.level<mylevel){
@@ -205,7 +205,7 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
       }
       if(TC_ENABLED){
         tcssize=LoadCellCenteredBoundaryBufferToCoarser(src_tc, tcns, tcne,
-                                &(sbuf[ssize+crssize]), buf_tc, nb, type);
+                                &(sbuf[ssize+crssize]), buf_tc, nb);
       }
     }
     else{
@@ -217,7 +217,7 @@ void BoundaryValues::SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src,
       }
       if(TC_ENABLED){
         tcssize=LoadCellCenteredBoundaryBufferToFiner(src_tc, tcns, tcne,
-                                  &(sbuf[ssize+crssize]), nb, type);                              
+                                  &(sbuf[ssize+crssize]), nb);                              
       }
     }
     if (nb.rank == Globals::my_rank) {

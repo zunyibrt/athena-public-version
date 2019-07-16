@@ -19,6 +19,7 @@
 #include "../field/field.hpp"
 #include "srcterms/hydro_srcterms.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
+#include "conduction/tc.hpp"
 
 // constructor, initializes data structures and parameters
 

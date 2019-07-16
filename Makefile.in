@@ -45,7 +45,7 @@ SRC_FILES := $(wildcard src/*.cpp) \
 	     src/pgen/default_pgen.cpp \
 	     $(wildcard src/cr/*.cpp) \
              $(wildcard src/cr/integrators/*.cpp) \
-             $(wildcard src/hydrp/conduction/*.cpp) \
+             $(wildcard src/hydro/conduction/*.cpp) \
              $(wildcard src/hydro/conduction/integrators/*.cpp)
 
 

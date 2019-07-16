@@ -75,7 +75,7 @@ class CosmicRay {
   AthenaArray<Real> cwidth;
   AthenaArray<Real> cwidth1;
   AthenaArray<Real> cwidth2;
-  AthenaArray<Real> b_grad_pc; // array to store B\dot Grad Pc
+  AthenaArray<Real> b_grad_pc; // array to store B dot Grad Pc
   AthenaArray<Real> b_angle;   // sin(theta),cos(theta),sin(phi),cos(phi)
                                // of B direction
 };

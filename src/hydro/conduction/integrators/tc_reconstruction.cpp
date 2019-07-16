@@ -1,11 +1,3 @@
-//========================================================================================
-// Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
-//========================================================================================
-//! \file dc.cpp
-//  \brief piecewise constant (donor cell) reconstruction
-
 // Athena++ headers
 #include <iostream>   // endl
 #include <sstream>    // stringstream
@@ -17,16 +9,13 @@
 #include "../../../coordinates/coordinates.hpp"
 #include "../tc.hpp"
 #include "../../hydro.hpp"
-//----------------------------------------------------------------------------------------
-//! \fn Reconstruction::DonorCellX1()
-//  \brief 
 
 void TCIntegrator::DonorCellX1(const int k, const int j,
   const int il, const int iu, const AthenaArray<Real> &u_tc,
-  AthenaArray<Real> &rho, AthenaArray<Real> &tgas, 
+  AthenaArray<Real> &rho, AthenaArray<Real> &tgas,
   AthenaArray<Real> &rho_l, AthenaArray<Real> &rho_r,
   AthenaArray<Real> &t_l, AthenaArray<Real> &t_r,
-  AthenaArray<Real> &w_l, AthenaArray<Real> &w_r)   
+  AthenaArray<Real> &w_l, AthenaArray<Real> &w_r)
 {
 
   for (int n=0; n<4; ++n){
@@ -54,11 +43,11 @@ void TCIntegrator::DonorCellX1(const int k, const int j,
 
 //----------------------------------------------------------------------------------------
 //! \fn Reconstruction::DonorCellX2()
-//  \brief 
+//  \brief
 
 void TCIntegrator::DonorCellX2(const int k, const int j,
   const int il, const int iu, const AthenaArray<Real> &u_tc,
-  AthenaArray<Real> &rho, AthenaArray<Real> &tgas, 
+  AthenaArray<Real> &rho, AthenaArray<Real> &tgas,
   AthenaArray<Real> &rho_l, AthenaArray<Real> &rho_r,
   AthenaArray<Real> &t_l, AthenaArray<Real> &t_r,
   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r)
@@ -90,11 +79,11 @@ void TCIntegrator::DonorCellX2(const int k, const int j,
 
 //----------------------------------------------------------------------------------------
 //! \fn Reconstruction::DonorCellX3()
-//  \brief 
+//  \brief
 
 void TCIntegrator::DonorCellX3(const int k, const int j,
   const int il, const int iu, const AthenaArray<Real> &u_tc,
-  AthenaArray<Real> &rho, AthenaArray<Real> &tgas,  
+  AthenaArray<Real> &rho, AthenaArray<Real> &tgas,
   AthenaArray<Real> &rho_l, AthenaArray<Real> &rho_r,
   AthenaArray<Real> &t_l, AthenaArray<Real> &t_r,
   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r)
@@ -128,7 +117,7 @@ void TCIntegrator::DonorCellX3(const int k, const int j,
 
 void TCIntegrator::PieceWiseLinear(const int k, const int j,
   const int il, const int iu, AthenaArray<Real> &u_tc,
-  AthenaArray<Real> &rho, AthenaArray<Real> &tgas, 
+  AthenaArray<Real> &rho, AthenaArray<Real> &tgas,
   AthenaArray<Real> &rho_l, AthenaArray<Real> &rho_r,
   AthenaArray<Real> &t_l, AthenaArray<Real> &t_r,
   AthenaArray<Real> &w_l, AthenaArray<Real> &w_r, int dir)
@@ -155,9 +144,9 @@ void TCIntegrator::PieceWiseLinear(const int k, const int j,
           msg << "### FATAL ERROR in NTC constructor" << std::endl
           << "Direction=" << dir << " not valid" << std::endl;
           throw std::runtime_error(msg.str().c_str());
-      }              
+      }
   }
-  
+
 //temperature , density reconstruction
 
   // add the advection component
@@ -174,10 +163,10 @@ void TCIntegrator::PieceWiseLinear(const int k, const int j,
 
   return;
 }
-  
 
-void TCIntegrator::GetOneVariableX1(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
+
+void TCIntegrator::GetOneVariableX1(const int k, const int j,
+      const int il, const int iu, const AthenaArray<Real> &q,
       AthenaArray<Real> &ql, AthenaArray<Real> &qr)
 {
 
@@ -218,8 +207,8 @@ void TCIntegrator::GetOneVariableX1(const int k, const int j,
   }
 }
 
-void TCIntegrator::GetOneVariableX2(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
+void TCIntegrator::GetOneVariableX2(const int k, const int j,
+      const int il, const int iu, const AthenaArray<Real> &q,
       AthenaArray<Real> &ql, AthenaArray<Real> &qr)
 {
 
@@ -249,7 +238,7 @@ void TCIntegrator::GetOneVariableX2(const int k, const int j,
     ql(i) = q_jm1;
     if(dq2>TINY_NUMBER)
       ql(i) += dxfr*dq2*(cfm*dql+cbm*dqc)/(dql*dql+(cfm+cbm-2.0)*dq2+dqc*dqc);
-    
+
     // Apply monotonicity constraints, compute qr_(i-1/2)
     dq2 = dqc*dqr;
     qr(i) = q_j;
@@ -259,8 +248,8 @@ void TCIntegrator::GetOneVariableX2(const int k, const int j,
 
 }
 
-void TCIntegrator::GetOneVariableX3(const int k, const int j, 
-      const int il, const int iu, const AthenaArray<Real> &q, 
+void TCIntegrator::GetOneVariableX3(const int k, const int j,
+      const int il, const int iu, const AthenaArray<Real> &q,
       AthenaArray<Real> &ql, AthenaArray<Real> &qr)
 {
 
@@ -290,7 +279,7 @@ void TCIntegrator::GetOneVariableX3(const int k, const int j,
     ql(i) = q_km1;
     if(dq2>TINY_NUMBER)
       ql(i) += dxfr*dq2*(cfm*dql+cbm*dqc)/(dql*dql+(cfm+cbm-2.0)*dq2+dqc*dqc);
-  
+
     // Apply monotonicity constraints, compute qr_(i-1/2)
     dq2 = dqc*dqr;
     qr(i) = q_k;
@@ -298,8 +287,3 @@ void TCIntegrator::GetOneVariableX3(const int k, const int j,
       qr(i) -= dxfl*dq2*(cfp*dqc+cbp*dqr)/(dqc*dqc+(cfp+cbp-2.0)*dq2+dqr*dqr);
   }
 }
-
-
-
-
-
