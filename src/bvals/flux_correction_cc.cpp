@@ -261,7 +261,6 @@ void BoundaryValues::SendFluxCorrection(enum FluxCorrectionType type) {
       if(tc_flux_flag > 0){
         if(nb.fid==INNER_X1 || nb.fid==OUTER_X1) {
           int i=pmb->is+(pmb->ie-pmb->is+1)*nb.fid;
-          fi1=fx2, fi2=fx3;
           if(pmb->block_size.nx3>1) { // 3D
             for(int nn=tcns; nn<=tcne; nn++) {
               for(int k=pmb->ks; k<=pmb->ke; k+=2) {
@@ -300,7 +299,6 @@ void BoundaryValues::SendFluxCorrection(enum FluxCorrectionType type) {
         // x2 direction
         else if(nb.fid==INNER_X2 || nb.fid==OUTER_X2) {
           int j=pmb->js+(pmb->je-pmb->js+1)*(nb.fid&1);
-          fi1=fx1, fi2=fx3;
           if(pmb->block_size.nx3>1) { // 3D
             for(int nn=tcns; nn<=tcne; nn++) {
               for(int k=pmb->ks; k<=pmb->ke; k+=2) {
@@ -331,7 +329,6 @@ void BoundaryValues::SendFluxCorrection(enum FluxCorrectionType type) {
         // x3 direction - 3D only
         else if(nb.fid==INNER_X3 || nb.fid==OUTER_X3) {
           int k=pmb->ks+(pmb->ke-pmb->ks+1)*(nb.fid&1);
-          fi1=fx1, fi2=fx2;
           for(int nn=tcns; nn<=tcne; nn++) {
             for(int j=pmb->js; j<=pmb->je; j+=2) {
               pco->Face3Area(k, j,   pmb->is, pmb->ie, sarea_[0]);

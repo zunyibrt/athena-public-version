@@ -22,6 +22,7 @@
 #include "hydro_diffusion/hydro_diffusion.hpp"
 #include "../field/field_diffusion/field_diffusion.hpp"
 #include "../cr/cr.hpp"
+#include "conduction/tc.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL

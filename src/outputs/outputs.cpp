@@ -304,6 +304,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   Field *pfld = pmb->pfield;
   Gravity *pgrav = pmb->pgrav;
   CosmicRay *pcr = pmb->pcr;
+  ThermalConduction *ptc = pmb->phydro->ptc;
   num_vars_ = 0;
   OutputData *pod;
 
@@ -666,7 +667,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       pod = new OutputData;
       pod->type = "VECTORS";
       pod->name = "TC_kappa";
-      pod->data.InitWithShallowSlice(ptc->ntc_kappa,4,0,3);
+      pod->data.InitWithShallowSlice(ptc->tc_kappa,4,0,3);
       AppendOutputDataNode(pod);
       num_vars_+=3;
     }

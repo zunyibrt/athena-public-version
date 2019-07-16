@@ -159,7 +159,6 @@ public:
   enum TaskStatus CRVAOpacity(MeshBlock *pmb, int stage);
 
   // task functions for thermal conduction
-  enum TaskStatus TCInitialize(MeshBlock *pmb, int step);
   enum TaskStatus TCFluxes(MeshBlock *pmb, int step);
   enum TaskStatus TCIntegrate(MeshBlock *pmb, int step);
   enum TaskStatus TCSourceTerms(MeshBlock *pmb, int step);
