@@ -120,7 +120,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       num_datasets += 1;
     if (CR_ENABLED)
       num_datasets += 1;
-    
+
     num_variables = new int[num_datasets];
     int n_dataset = 0;
     num_variables[n_dataset++] = NHYDRO;
@@ -177,32 +177,32 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   while(pod!=NULL) {
     if (pod->type=="VECTORS") {
       for (int i=1; i<=3; i++) {
-        char sn[3];
+        char sn[4];
         std::sprintf(sn,"%d", i);
         std::string vname = pod->name + sn;
         std::strncpy(variable_names[n_variable++], vname.c_str(), max_name_length+1);
       }
     } else if(pod->type=="TENSORS") {
       for(int i=1; i<=3; i++) {
-        char sn[3];
+        char sn[4];
         std::sprintf(sn,"%d%d", i,i);
         std::string vname = pod->name + sn;
         std::strncpy(variable_names[n_variable++], vname.c_str(), max_name_length+1);
       }
       for(int i=2; i<=3; i++) {
-        char sn[3];
+        char sn[4];
         std::sprintf(sn,"%d%d", 1,i);
         std::string vname = pod->name + sn;
         std::strncpy(variable_names[n_variable++], vname.c_str(), max_name_length+1);
       }
       for(int i=3; i>=1; i-=2) {
-        char sn[3];
+        char sn[4];
         std::sprintf(sn,"%d%d", 2,i);
         std::string vname = pod->name + sn;
         std::strncpy(variable_names[n_variable++], vname.c_str(), max_name_length+1);
       }
       for(int i=1; i<=2; i++) {
-        char sn[3];
+        char sn[4];
         std::sprintf(sn,"%d%d", 3,i);
         std::string vname = pod->name + sn;
         std::strncpy(variable_names[n_variable++], vname.c_str(), max_name_length+1);
@@ -409,7 +409,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           int nv=1;
           if (pod->type=="VECTORS") nv=3;
 	  else if(pod->type=="TENSORS") nv=9;
-          
+
 	  for (int v=0; v < nv; v++, ndv++) {
             int index = 0;
             for (int k = out_ks; k <= out_ke; k++) {
