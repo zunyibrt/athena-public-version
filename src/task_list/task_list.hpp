@@ -158,6 +158,13 @@ public:
   enum TaskStatus CRSourceTerms(MeshBlock *pmb, int stage);
   enum TaskStatus CRVAOpacity(MeshBlock *pmb, int stage);
 
+  // task functions for thermal conduction
+  enum TaskStatus TCInitialize(MeshBlock *pmb, int step);
+  enum TaskStatus TCFluxes(MeshBlock *pmb, int step);
+  enum TaskStatus TCIntegrate(MeshBlock *pmb, int step);
+  enum TaskStatus TCSourceTerms(MeshBlock *pmb, int step);
+  enum TaskStatus TCOpacity(MeshBlock *pmb, int step);
+
 };
 
 
@@ -241,6 +248,13 @@ namespace HydroIntegratorTaskNames {
   const uint64_t INT_CR=1LL<<57;
   const uint64_t SRCTERM_CR=1LL<<58;
   const uint64_t CR_VAOPACITY=1L<<59;
+
+  // tasks for thermal conduction
+  const uint64_t CALC_TCFLX=1LL<<60;
+  const uint64_t INT_TC=1LL<<61;
+  const uint64_t SRCTERM_TC=1LL<<62;
+  const uint64_t TC_OPACITY=1LL<<63;
+
 
 }; // namespace HydroIntegratorTaskNames
 

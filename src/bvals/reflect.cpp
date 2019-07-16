@@ -12,6 +12,7 @@
 #include "../mesh/mesh.hpp"
 #include "../cr/cr.hpp"
 #include "bvals.hpp"
+#include "../hydro/conduction/tc.hpp"
 
 //----------------------------------------------------------------------------------------
 //! \fn void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
@@ -86,6 +87,28 @@ void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 #pragma omp simd
           for (int i=1; i<=ngh; ++i) {
             u_cr(n,k,j,is-i) = u_cr(n,k,j,(is+i-1));
+          }
+        }}
+      }
+    }
+  }
+
+  if(TC_ENABLED){
+    for (int n=1; n<=(NTC); ++n) {
+      if (n==1) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=1; i<=(NGHOST); ++i) {
+            u_tc(1,k,j,is-i) = -u_tc(1,k,j,(is+i-1));  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=1; i<=(NGHOST); ++i) {
+            u_tc(n,k,j,is-i) = u_tc(n,k,j,(is+i-1));
           }
         }}
       }
@@ -174,6 +197,28 @@ void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }
   }
 
+  if(TC_ENABLED){
+    for (int n=1; n<=(NTC); ++n) {
+      if (n==1) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=1; i<=(NGHOST); ++i) {
+            u_tc(1,k,j,ie+i) = -u_tc(1,k,j,(ie-i+1));  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=1; i<=(NGHOST); ++i) {
+            u_tc(n,k,j,ie+i) = u_tc(n,k,j,(ie-i+1));
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -250,6 +295,28 @@ void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
             u_cr(n,k,js-j,i) = u_cr(n,k,(js+j-1),i);
+          }
+        }}
+      }
+    }
+  }
+
+  if(TC_ENABLED){
+    for (int n=1; n<=(NTC); ++n) {
+      if (n==2) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=(NGHOST); ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(2,k,js-j,i) = -u_tc(2,k,(js+j-1),i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=(NGHOST); ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(n,k,js-j,i) = u_tc(n,k,(js+j-1),i);
           }
         }}
       }
@@ -338,6 +405,28 @@ void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }
   }
 
+  if(TC_ENABLED){
+    for (int n=1; n<=(NTC); ++n) {
+      if (n==2) {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=(NGHOST); ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(2,k,je+j,i) = -u_tc(2,k,(je-j+1),i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=ks; k<=ke; ++k) {
+        for (int j=1; j<=(NGHOST); ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(n,k,je+j,i) = u_tc(n,k,(je-j+1),i);
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -420,6 +509,28 @@ void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
     }
   }
 
+  if(TC_ENABLED){
+    for (int n=1; n<=NTC; ++n) {
+      if (n==3) {
+        for (int k=1; k<=(NGHOST); ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(3,ks-k,j,i) = -u_tc(3,ks+k-1,j,i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=1; k<=(NGHOST); ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(n,ks-k,j,i) = u_tc(n,ks+k-1,j,i);
+          }
+        }}
+      }
+    }
+  }
+
   return;
 }
 
@@ -496,6 +607,28 @@ void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
 #pragma omp simd
           for (int i=is; i<=ie; ++i) {
             u_cr(n,ke+k,j,i) = u_cr(n,ke-k+1,j,i);
+          }
+        }}
+      }
+    }
+  }
+
+  if(TC_ENABLED){
+    for (int n=1; n<=NTC; ++n) {
+      if (n==3) {
+        for (int k=1; k<=(NGHOST); ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(3,ke+k,j,i) = -u_tc(3,ke-k+1,j,i);  // reflect 1-velocity
+          }
+        }}
+      } else {
+        for (int k=1; k<=(NGHOST); ++k) {
+        for (int j=js; j<=je; ++j) {
+#pragma omp simd
+          for (int i=is; i<=ie; ++i) {
+            u_tc(n,ke+k,j,i) = u_tc(n,ke-k+1,j,i);
           }
         }}
       }

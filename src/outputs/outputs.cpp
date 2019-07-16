@@ -68,6 +68,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../cr/cr.hpp"
+#include "../hydro/conduction/tc.hpp"
 #include "outputs.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -634,6 +635,44 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
 
   }// End Cosmic Ray
+
+  if (TC_ENABLED) {
+    if (output_params.variable.compare("Ftc") == 0 || 
+        output_params.variable.compare("cons") == 0 ||
+        output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "Ftc";
+      pod->data.InitWithShallowSlice(ptc->u_tc,4,1,3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+      if(output_params.cartesian_vector) {
+        AthenaArray<Real> src;
+        src.InitWithShallowSlice(ptc->u_tc,4,1,3);
+        pod = new OutputData;
+        pod->type = "VECTORS";
+        pod->name = "Ftc_xyz";
+        pod->data.NewAthenaArray(3,ptc->u_tc.GetDim3(),ptc->u_tc.GetDim2(),
+                                    ptc->u_tc.GetDim1());
+        CalculateCartesianVector(src, pod->data, pmb->pcoord);
+        AppendOutputDataNode(pod);
+        num_vars_+=3;
+      }
+    }
+
+    if (output_params.variable.compare("TC_kappa") == 0 ||
+        output_params.variable.compare("cons") == 0 ||
+        output_params.variable.compare("prim") == 0) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "TC_kappa";
+      pod->data.InitWithShallowSlice(ptc->ntc_kappa,4,0,3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
+
+  }// End New Thermal Conduction
+
 
   if (output_params.variable.compare(0, 3, "uov") == 0
    || output_params.variable.compare(0, 12, "user_out_var") == 0) {
