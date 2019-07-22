@@ -75,29 +75,6 @@ inline void DefaultKappa(MeshBlock *pmb,
     }// end k
   }// end MHD
 
-
-  // set the U_tc[0] to be the gas internal energy
-  // Also calculate the gas temperature and density
-  // This is gamma - 1
-  Real gamma_1=pmb->peos->GetGamma()-1.0;
-
-  int n1 = pmb->block_size.nx1 + 2*NGHOST;
-  int n2 = pmb->block_size.nx2;
-  int n3 = pmb->block_size.nx3;
-  if (pmb->block_size.nx2 > 1) n2 += 2*NGHOST;
-  if (pmb->block_size.nx3 > 1) n3 += 2*NGHOST;
-
-  for (int k=0; k<n3; ++k) {
-    for (int j=0; j<n2; ++j) {
-      for (int i=0; i<n1; ++i) {
-        ptc->tgas(k,j,i) = prim(IEN,k,j,i)/prim(IDN,k,j,i);
-        // rho here actually should be e/T=pgas/(T(gamma-1))
-        ptc->rho(k,j,i) = prim(IDN,k,j,i)/gamma_1;
-        //set the first conserved variable to be the gas internal energy
-        ptc->u_tc(0,k,j,i) = prim(IEN,k,j,i)/gamma_1;
-      }
-    }
-  }
 }
 
 // Constructor

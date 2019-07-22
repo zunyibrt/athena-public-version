@@ -24,7 +24,7 @@ public:
   ThermalConduction(Hydro *phydro, ParameterInput *pin);
   ~ThermalConduction();
 
-  // Arrays storing thermal conduction flux
+  // Arrays storing thermal conduction variables
   // Extra arrays are for use during time integration
   AthenaArray<Real> u_tc, u_tc1, u_tc2;
 

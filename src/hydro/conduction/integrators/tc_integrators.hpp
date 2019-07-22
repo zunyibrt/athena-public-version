@@ -30,9 +30,9 @@ public:
          		        AthenaArray<Real> &u_in1, AthenaArray<Real> &u_in2,
          		        const Real wght[3]);
 
-  void AddFluxDivergenceToAverage(MeshBlock *pmb, AthenaArray<Real> &u_tc,
-                                  AthenaArray<Real> &u, const Real wght,
-                                  AthenaArray<Real> &w, AthenaArray<Real> &bcc);
+  void AddFluxDivergenceToAverage(MeshBlock *pmb,
+                                  AthenaArray<Real> &u_tc,
+                                  Real const weight);
 
   void AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
                                   AthenaArray<Real> &u_tc);

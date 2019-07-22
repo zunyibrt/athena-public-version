@@ -1168,8 +1168,7 @@ enum TaskStatus TimeIntegratorTaskList::TCIntegrate(MeshBlock *pmb, int stage)
     ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc,ptc->u_tc1,ptc->u_tc2,ave_wghts);
 
     // u_tc -= beta*dt*flux_density
-    ptc->ptcintegrator->AddFluxDivergenceToAverage(pmb, ptc->u_tc, ph->u, stage_wghts[stage-1].beta,
-                                                   ph->w, pfield->bcc);
+    ptc->ptcintegrator->AddFluxDivergenceToAverage(pmb, ptc->u_tc, stage_wghts[stage-1].beta);
     return TASK_NEXT;
   }
 
