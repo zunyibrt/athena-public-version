@@ -417,6 +417,9 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           }else if(pod->name=="Ec"){
             n_dataset++;
             ndv=0;
+          }else if(pod->name=="Ftc"){
+            n_dataset++;
+            ndv=0;
           }
           int nv=1;
           if (pod->type=="VECTORS") nv=3;

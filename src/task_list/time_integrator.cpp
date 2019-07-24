@@ -227,7 +227,8 @@ TimeIntegratorTaskList::TimeIntegratorTaskList(ParameterInput *pin, Mesh *pm)
     if (CR_ENABLED)
       AddTimeIntegratorTask(CALC_CRFLX,START_ALLRECV);
     if (TC_ENABLED){
-      AddTimeIntegratorTask(CALC_TCFLX,START_ALLRECV);
+      AddTimeIntegratorTask(INI_TC,NONE);
+      AddTimeIntegratorTask(CALC_TCFLX,START_ALLRECV|INI_TC);
     }
     if (pm->multilevel==true) { // SMR or AMR
       step_flag = CALC_HYDFLX;
@@ -546,7 +547,12 @@ void TimeIntegratorTaskList::AddTimeIntegratorTask(uint64_t id, uint64_t dep) {
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
         (&TimeIntegratorTaskList::CRVAOpacity);
       break;
-    // cases for thermal conduction
+    // cases for Thermal Conduction
+    case (INI_TC):
+      task_list_[ntasks].TaskFunc=
+        static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
+        (&TimeIntegratorTaskList::TCInitialize);
+      break;
     case (CALC_TCFLX):
       task_list_[ntasks].TaskFunc=
         static_cast<enum TaskStatus (TaskList::*)(MeshBlock*,int)>
@@ -659,6 +665,7 @@ enum TaskStatus TimeIntegratorTaskList::EMFCorrectReceive(MeshBlock *pmb, int st
 enum TaskStatus TimeIntegratorTaskList::HydroIntegrate(MeshBlock *pmb, int stage) {
   Hydro *ph=pmb->phydro;
   Field *pf=pmb->pfield;
+
   if (stage <= nstages) {
     // This time-integrator-specific averaging operation logic is identical to FieldInt
     // u1 = u1 + delta*u
@@ -715,8 +722,6 @@ enum TaskStatus TimeIntegratorTaskList::HydroSourceTerms(MeshBlock *pmb, int sta
   Field *pf=pmb->pfield;
 
   // return if there are no source terms to be added
-  if (ph->psrc->hydro_sourceterms_defined == false) return TASK_NEXT;
-
   if (stage <= nstages) {
     // Time at beginning of stage for u()
     Real t_start_stage = pmb->pmy_mesh->time + pmb->stage_abscissae[stage-1][0];
@@ -770,7 +775,7 @@ enum TaskStatus TimeIntegratorTaskList::FieldDiffusion(MeshBlock *pmb, int stage
 
 enum TaskStatus TimeIntegratorTaskList::HydroSend(MeshBlock *pmb, int stage) {
   if (stage <= nstages) {
-    pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, 
+    pmb->pbval->SendCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr,
                                                 pmb->phydro->ptc->u_tc, HYDRO_CONS);
   } else {
     return TASK_FAIL;
@@ -793,7 +798,7 @@ enum TaskStatus TimeIntegratorTaskList::FieldSend(MeshBlock *pmb, int stage) {
 enum TaskStatus TimeIntegratorTaskList::HydroReceive(MeshBlock *pmb, int stage) {
   bool ret;
   if (stage <= nstages) {
-    ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr, 
+    ret=pmb->pbval->ReceiveCellCenteredBoundaryBuffers(pmb->phydro->u, pmb->pcr->u_cr,
                                                        pmb->phydro->ptc->u_tc, HYDRO_CONS);
   } else {
     return TASK_FAIL;
@@ -1012,31 +1017,27 @@ enum TaskStatus TimeIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int st
       pmb->stage_abscissae[l][2] = 0.0;
     }
 
-    // Initialize storage registers
-    // Comments below are leftovers I think, but not removing for now
-    // Cache U^n in third memory register, u2, via deep copy
-    // (if using a 3S* time-integrator)
-    // ph->u2 = ph->u;
-
-    // Cache face-averaged B^n in third memory register, b2, via AthenaArray deep copy
-    // (if using a 3S* time-integrator)
-    // pf->b2.x1f = pf->b.x1f;
-    // pf->b2.x2f = pf->b.x2f;
-    // pf->b2.x3f = pf->b.x3f;
-
+    // Initialize extra storage registers to zero
     Real ave_wghts[3] = {};
 
-    Hydro *ph=pmb->phydro;
-    ph->WeightedAveU(ph->u1,ph->u,ph->u,ave_wghts);
+    auto ph = pmb->phydro;
+    ph->WeightedAveU(ph->u1, ph->u, ph->u, ave_wghts);
 
     if (MAGNETIC_FIELDS_ENABLED) {
-      Field *pf = pmb->pfield;
-      pf->WeightedAveB(pf->b1,pf->b,pf->b,ave_wghts);
+      auto pf = pmb->pfield;
+      pf->WeightedAveB(pf->b1, pf->b, pf->b, ave_wghts);
     }
 
     if (CR_ENABLED) {
-      CosmicRay *pcr = pmb->pcr;
-      pcr->pcrintegrator->WeightedAveU(pmb,pcr->u_cr1,pcr->u_cr,pcr->u_cr,ave_wghts);
+      auto pcr = pmb->pcr;
+      pcr->pcrintegrator->WeightedAveU(pmb, pcr->u_cr1, pcr->u_cr, pcr->u_cr,
+                                       ave_wghts);
+    }
+
+    if (TC_ENABLED) {
+      auto ptc = pmb->phydro->ptc;
+      ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc1, ptc->u_tc, ptc->u_tc,
+                                       ave_wghts);
     }
 
     return TASK_SUCCESS;
@@ -1046,46 +1047,43 @@ enum TaskStatus TimeIntegratorTaskList::StartupIntegrator(MeshBlock *pmb, int st
 // Task functions for Cosmic Rays
 enum TaskStatus TimeIntegratorTaskList::CRFluxes(MeshBlock *pmb, int stage)
 {
-  CosmicRay *pcr=pmb->pcr;
-  Hydro *phydro=pmb->phydro;
-  Field *pfield=pmb->pfield;
+  auto pcr = pmb->pcr;
+  auto ph  = pmb->phydro;
+  auto pf  = pmb->pfield;
 
   if (stage <= nstages) {
-    // why this specific if statement? not needed if pmb->precon->xorder is set to 1
-    if((stage == 1) && (integrator == "vl2")) {
-      pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, pcr->u_cr, 1);
-      return TASK_NEXT;
-    } else {
-      //Note, should make sure that pcrintegrator can handle order of 3, not True as of now
-      pcr->pcrintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, pcr->u_cr, pmb->precon->xorder);
-      return TASK_NEXT;
-    }
+    pcr->pcrintegrator->CalculateFluxes(pmb, ph->w, pf->bcc, pcr->u_cr,
+                                        pmb->precon->xorder);
+    return TASK_NEXT;
   }
+
   return TASK_FAIL;
 }
 
 enum TaskStatus TimeIntegratorTaskList::CRIntegrate(MeshBlock *pmb, int stage)
 {
-  CosmicRay *pcr=pmb->pcr;
-  Hydro *ph=pmb->phydro;
-  Field *pfield=pmb->pfield;
+  auto pcr = pmb->pcr;
 
   if (stage <= nstages) {
-    // u_cr1 = u_cr1 + delta*u_cr
     Real ave_wghts[3];
+
+    // u_cr1 = u_cr1 + delta*u_cr
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    pcr->pcrintegrator->WeightedAveU(pmb, pcr->u_cr1,pcr->u_cr,pcr->u_cr2,ave_wghts);
+    pcr->pcrintegrator->WeightedAveU(pmb, pcr->u_cr1, pcr->u_cr, pcr->u_cr2,
+                                     ave_wghts);
 
     // u_cr = gamma_1*u_cr + gamma_2*u_cr1 + gamma_3*u_cr2
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-    pcr->pcrintegrator->WeightedAveU(pmb, pcr->u_cr,pcr->u_cr1,pcr->u_cr2,ave_wghts);
+    pcr->pcrintegrator->WeightedAveU(pmb, pcr->u_cr, pcr->u_cr1, pcr->u_cr2,
+                                     ave_wghts);
 
     // u_cr -= beta*dt*flux_density
-    pcr->pcrintegrator->AddFluxDivergenceToAverage(pmb, pcr->u_cr, stage_wghts[stage-1].beta);
+    pcr->pcrintegrator->AddFluxDivergenceToAverage(pmb, pcr->u_cr,
+                                                   stage_wghts[stage-1].beta);
     return TASK_NEXT;
   }
 
@@ -1094,81 +1092,90 @@ enum TaskStatus TimeIntegratorTaskList::CRIntegrate(MeshBlock *pmb, int stage)
 
 enum TaskStatus TimeIntegratorTaskList::CRSourceTerms(MeshBlock *pmb, int stage)
 {
-  CosmicRay *pcr=pmb->pcr;
-  Hydro *ph=pmb->phydro;
-  Field *pfield=pmb->pfield;
+  auto pcr = pmb->pcr;
+  auto ph  = pmb->phydro;
 
   if (stage <= nstages) {
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     pcr->pcrintegrator->AddSourceTerms(pmb,dt,ph->u,ph->w,pcr->u_cr);
-  } else {
-    return TASK_FAIL;
+    return TASK_NEXT;
   }
-  return TASK_NEXT;
+
+  return TASK_FAIL;
 }
 
 
 enum TaskStatus TimeIntegratorTaskList::CRVAOpacity(MeshBlock *pmb, int stage)
 {
-  CosmicRay *pcr = pmb->pcr;
-  Hydro *phydro=pmb->phydro;
-  Field *pfield=pmb->pfield;
+  auto pcr = pmb->pcr;
+  auto ph  = pmb->phydro;
+  auto pf  = pmb->pfield;
 
   if (stage <= nstages) {
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
     // Need to update the Eddington tensor first to get cosmic ray pressure
-    pcr->UpdateCRTensor(pmb, phydro->w);
-    pcr->UpdateDiff(pmb, pcr->u_cr,phydro->w,pfield->bcc,dt);
-  } else {
-    return TASK_FAIL;
+    pcr->UpdateCRTensor(pmb, ph->w);
+    pcr->UpdateDiff(pmb, pcr->u_cr, ph->w, pf->bcc, dt);
+    return TASK_NEXT;
   }
 
-  return TASK_NEXT;
+  return TASK_FAIL;
 }
 
 // Task functions for Thermal Conduction
-enum TaskStatus TimeIntegratorTaskList::TCFluxes(MeshBlock *pmb, int stage)
+enum TaskStatus TimeIntegratorTaskList::TCInitialize(MeshBlock *pmb, int stage)
 {
-  Hydro *phydro=pmb->phydro;
-  Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=pmb->phydro->ptc;
+  auto ph  = pmb->phydro;
+  auto ptc = ph->ptc;
 
   if (stage <= nstages) {
-    // why this specific if statement? not needed if pmb->precon->xorder is set to 1
-    if((stage == 1) && (integrator == "vl2")) {
-      ptc->ptcintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, ptc->u_tc, 1);
-      return TASK_NEXT;
-    } else {
-      //Note, should make sure that pcrintegrator can handle order of 3, not True as of now
-      ptc->ptcintegrator->CalculateFluxes(pmb, phydro->w, pfield->bcc, ptc->u_tc, pmb->precon->xorder);
-      return TASK_NEXT;
-    }
+    ptc->Initialize(pmb, ph->w, ptc->u_tc);
+    return TASK_NEXT;
   }
+
+  return TASK_FAIL;
+}
+
+enum TaskStatus TimeIntegratorTaskList::TCFluxes(MeshBlock *pmb, int stage)
+{
+  auto ph  = pmb->phydro;
+  auto pf  = pmb->pfield;
+  auto ptc = ph->ptc;
+
+  if (stage <= nstages) {
+    ptc->ptcintegrator->CalculateFluxes(pmb, ph->w, pf->bcc, ptc->u_tc,
+                                        pmb->precon->xorder);
+    return TASK_NEXT;
+  }
+
   return TASK_FAIL;
 }
 
 enum TaskStatus TimeIntegratorTaskList::TCIntegrate(MeshBlock *pmb, int stage)
 {
-  Hydro *ph=pmb->phydro;
-  Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=pmb->phydro->ptc;
+  auto ptc = pmb->phydro->ptc;
 
   if (stage <= nstages) {
-    // u_tc1 = u_tc1 + delta*u_tc
     Real ave_wghts[3];
+
+    // u_tc1 = u_tc1 + delta*u_tc
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc1,ptc->u_tc,ptc->u_tc2,ave_wghts);
+    ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc1, ptc->u_tc, ptc->u_tc2,
+                                     ave_wghts);
 
     // u_tc = gamma_1*u_tc + gamma_2*u_tc1 + gamma_3*u_tc2
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-    ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc,ptc->u_tc1,ptc->u_tc2,ave_wghts);
+    ptc->ptcintegrator->WeightedAveU(pmb, ptc->u_tc, ptc->u_tc1, ptc->u_tc2,
+                                     ave_wghts);
 
     // u_tc -= beta*dt*flux_density
-    ptc->ptcintegrator->AddFluxDivergenceToAverage(pmb, ptc->u_tc, stage_wghts[stage-1].beta);
+    ptc->ptcintegrator->AddFluxDivergenceToAverage(pmb, ptc->u_tc,
+                                                   stage_wghts[stage-1].beta);
+
     return TASK_NEXT;
   }
 
@@ -1177,32 +1184,28 @@ enum TaskStatus TimeIntegratorTaskList::TCIntegrate(MeshBlock *pmb, int stage)
 
 enum TaskStatus TimeIntegratorTaskList::TCSourceTerms(MeshBlock *pmb, int stage)
 {
-  Hydro *ph=pmb->phydro;
-  Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=pmb->phydro->ptc;
+  auto ph  = pmb->phydro;
+  auto ptc = ph->ptc;
 
   if (stage <= nstages) {
     Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    ptc->ptcintegrator->AddSourceTerms(pmb,dt,ph->u,ptc->u_tc);
-  } else {
-    return TASK_FAIL;
+    ptc->ptcintegrator->AddSourceTerms(pmb, dt, ph->u, ptc->u_tc);
+    return TASK_NEXT;
   }
-  return TASK_NEXT;
-}
 
+  return TASK_FAIL;
+}
 
 enum TaskStatus TimeIntegratorTaskList::TCOpacity(MeshBlock *pmb, int stage)
 {
-  Hydro *phydro=pmb->phydro;
-  Field *pfield=pmb->pfield;
-  ThermalConduction *ptc=pmb->phydro->ptc;
+  auto ph  = pmb->phydro;
+  auto pf  = pmb->pfield;
+  auto ptc = ph->ptc;
 
   if (stage <= nstages) {
-    Real dt = (stage_wghts[(stage-1)].beta)*(pmb->pmy_mesh->dt);
-    ptc->UpdateKappa(pmb, phydro->w, pfield->bcc);
-  } else {
-    return TASK_FAIL;
+    ptc->UpdateKappa(pmb, ph->w, pf->bcc);
+    return TASK_NEXT;
   }
 
-  return TASK_NEXT;
+  return TASK_FAIL;
 }

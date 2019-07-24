@@ -42,58 +42,39 @@ void TCIntegrator::CalculateFluxes(MeshBlock *pmb,
   int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
 
-  //---------------------------------------------------------------------------
-  // First, set u_tc[0] to be the gas internal energy
-  // Also calculate the gas temperature and density
-  Real gm1 = pmb->peos->GetGamma()-1.0;
-
-  for (int k=0; k<n3; ++k) {
-    for (int j=0; j<n2; ++j) {
-      for (int i=0; i<n1; ++i) {
-        // w are the primitives
-        ptc->tgas(k,j,i) = w(IEN,k,j,i)/w(IDN,k,j,i);
-        // rho here actually should be e/T=pgas/(T(gamma-1))
-        ptc->rho(k,j,i) = w(IDN,k,j,i)/gm1;
-        //set the first conserved variable to be the gas internal energy
-        ptc->u_tc(0,k,j,i) = w(IEN,k,j,i)/gm1;
-      }
-    }
-  }
-
-  //---------------------------------------------------------------------------
   // First, calculate the diffusion velocity along three coordinate system
   // We first assume B is along x coordinate
   // Then rotate according to B direction to the actual acooridnate
-  for (int k=0; k<n3; ++k){
-    for(int j=0; j<n2; ++j){
+  for (int k=0; k<n3; ++k) {
+    for (int j=0; j<n2; ++j) {
       // diffusion velocity along the direction of sigma vector
-      for(int i=0; i<n1; ++i){
+      for (int i=0; i<n1; ++i) {
         Real kappa = ptc->rho(k,j,i)/ptc->tc_kappa(0,k,j,i);
-        Real taux = taufact_ * ptc->vmax * kappa * pco->dx1f(i);
+        Real taux = ptc->vmax * kappa * pco->dx1f(i);
         taux = taux * taux/2.0;
         Real diffv = sqrt((1.0 - exp(-taux)) / taux);
-        if(taux < 1.e-3) diffv = sqrt((1.0 - 0.5* taux));
+        if (taux < 1.e-3) diffv = sqrt((1.0 - 0.5* taux));
         vdiff_(0,k,j,i) = ptc->vmax * diffv;
       }
 
       // y direction
       pco->CenterWidth2(k,j,0,n1-1,cwidth);
         // get the optical depth across the cell
-      for(int i=0; i<n1; ++i){
+      for (int i=0; i<n1; ++i) {
         Real kappa = ptc->rho(k,j,i)/ptc->tc_kappa(1,k,j,i);
-        Real tauy = taufact_ * ptc->vmax * kappa * cwidth(i);
+        Real tauy = ptc->vmax * kappa * cwidth(i);
         tauy = tauy * tauy/2.0;
         Real diffv = sqrt((1.0 - exp(-tauy)) / tauy);
-        if(tauy < 1.e-3) diffv = sqrt((1.0 - 0.5* tauy));
+        if (tauy < 1.e-3) diffv = sqrt((1.0 - 0.5* tauy));
         vdiff_(1,k,j,i) = ptc->vmax * diffv;
       }// end i
 
       // z direction
       pco->CenterWidth3(k,j,0,n1-1,cwidth);
         // get the optical depth across the cell
-      for(int i=0; i<n1; ++i){
+      for (int i=0; i<n1; ++i) {
         Real kappa = ptc->rho(k,j,i)/ptc->tc_kappa(2,k,j,i);
-        Real tauz = taufact_ * ptc->vmax * kappa * cwidth(i);
+        Real tauz = ptc->vmax * kappa * cwidth(i);
         tauz = tauz * tauz/2.0;
         Real diffv = sqrt((1.0 - exp(-tauz)) / tauz);
         if(tauz < 1.e-3) diffv = sqrt((1.0 - 0.5* tauz));
@@ -121,8 +102,7 @@ void TCIntegrator::CalculateFluxes(MeshBlock *pmb,
     }
   }
 
-//-----------------------------------------------------------------------------
-// i-direction
+  // i-direction
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
       // Reconstruct density temperature and speed at left and right state
@@ -216,7 +196,6 @@ void TCIntegrator::CalculateFluxes(MeshBlock *pmb,
   }// finish k direction
 }
 
-//----------------------------------------------------------------------------------------
 //  Adds flux divergence to weighted average of conservative variables from
 //  previous step(s) of time integrator algorithm
 void TCIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb,
@@ -287,7 +266,7 @@ void TCIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb,
       for (int n=0; n<NTC; ++n) {
 #pragma omp simd
         for (int i=is; i<=ie; ++i) {
-          u_tc(n,k,j,i) -= weight*dt*dflx(n,i)/vol(i);
+          u_tc(n,k,j,i) -= weight*dt*ptc->rho(k,j,i)*dflx(n,i)/vol(i);
         }
       }
 
@@ -298,11 +277,9 @@ void TCIntegrator::AddFluxDivergenceToAverage(MeshBlock *pmb,
       }
 
     }// end j
-  }// End k
+  }// end k
 }
 
-
-//----------------------------------------------------------------------------------------
 //  Compute weighted average of cell-averaged U in time integrator step
 //  i.e. Sets U = a*U + b*U1 + c*U2
 void TCIntegrator::WeightedAveU(MeshBlock* pmb,

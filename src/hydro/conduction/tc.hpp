@@ -2,6 +2,7 @@
 #define TC_HPP
 
 // Athena++ classes headers
+#include <memory>
 #include "../../athena.hpp"
 #include "../../athena_arrays.hpp"
 
@@ -38,19 +39,22 @@ public:
 
   // Limits
   Real vmax; // the maximum velocity (effective speed of light)
-  Real min_kappa;
+  Real kappa_iso;
+  Real kappa_aniso;
 
   // Pointer to parent hydro
-  Hydro* pmy_hydro;
+  Hydro *pmy_hydro;
 
   // Pointer to Integrator
-  TCIntegrator *ptcintegrator;
-
-  //  Enroll a user-defined opacity function in problem generators
-  void EnrollKappaFunction(TCkappa_t MyConductionFunction);
+  std::unique_ptr<TCIntegrator> ptcintegrator;
 
   // The function pointer for the diffusion coefficient
   TCkappa_t UpdateKappa;
+
+  //  Enroll a user-defined opacity function in problem generators
+  void EnrollKappaFunction(TCkappa_t MyConductionFunction);
+  void Initialize(MeshBlock *pmb, AthenaArray<Real> &prim,
+                                  AthenaArray<Real> &tc_u);
 
 };
 

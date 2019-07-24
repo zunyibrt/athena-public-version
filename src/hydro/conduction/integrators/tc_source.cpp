@@ -20,9 +20,9 @@ void TCIntegrator::AddSourceTerms(MeshBlock *pmb,
     for (int j=pmb->js; j<=pmb->je; ++j) {
       for (int i=pmb->is; i<=pmb->ie; ++i) {
 
-         Real f1 = u_tc(1,k,j,0);
-         Real f2 = u_tc(2,k,j,0);
-         Real f3 = u_tc(3,k,j,0);
+         Real f1 = u_tc(1,k,j,i);
+         Real f2 = u_tc(2,k,j,i);
+         Real f3 = u_tc(3,k,j,i);
 
          // Compute rotation matrix components
          Real sint_b = ptc->b_angle(0,k,j,i);
@@ -58,7 +58,7 @@ void TCIntegrator::AddSourceTerms(MeshBlock *pmb,
          u_tc(2,k,j,i) = f2;
          u_tc(3,k,j,i) = f3;
 
-         // Update energy source term (calculated in transport step)
+         // Update energy source term (calculated in transport step
          u(IEN,k,j,i) += tc_esource_(k,j,i);
 
       }// end i
