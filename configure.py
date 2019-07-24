@@ -17,6 +17,7 @@
 #   -s                enable special relativity
 #   -g                enable general relativity
 #   -cr               enable cosmic rays
+#   -tc               enable thermal conduction
 #   -t                enable interface frame transformations for GR
 #   -shear            enable shearing periodic boundary conditions
 #   -debug            enable debug flags (-g -O0); override other compiler options
@@ -61,20 +62,18 @@ parser.add_argument('--prob',
                     help='select problem generator')
 
 # --coord=[name] argument
-parser.add_argument(
-    '--coord',
-    default='cartesian',
-    choices=[
-        'cartesian',
-        'cylindrical',
-        'spherical_polar',
-        'minkowski',
-        'sinusoidal',
-        'tilted',
-        'schwarzschild',
-        'kerr-schild',
-        'gr_user'],
-    help='select coordinate system')
+parser.add_argument('--coord',
+                    default='cartesian',
+                    choices=['cartesian',
+                             'cylindrical',
+                             'spherical_polar',
+                             'minkowski',
+                             'sinusoidal',
+                             'tilted',
+                             'schwarzschild',
+                             'kerr-schild',
+                             'gr_user'],
+                    help='select coordinate system')
 
 # --eos=[name] argument
 parser.add_argument('--eos',
@@ -113,9 +112,16 @@ parser.add_argument('-g',
 
 # -cr argument
 parser.add_argument('-cr',
-    action='store_true',
-    default=False,
-    help='enable cosmic ray transfer')
+                    action='store_true',
+                    default=False,
+                    help='enable cosmic ray transfer')
+
+# -tc argument
+parser.add_argument('-tc',
+                    action='store_true',
+                    default=False,
+                    help='enable thermal conduction')
+
 
 # -t argument
 parser.add_argument('-t',
@@ -345,6 +351,10 @@ if args['g']:
 # -cr argument
 definitions['CR_ENABLED'] = '1' if args ['cr'] else '0'
 definitions['NCR_VARIABLES'] = '4' if args ['cr'] else '0'
+
+# -tc argument
+definitions['TC_ENABLED'] = '1' if args['tc'] else '0'
+definitions['NTC_VARIABLES'] = '3' if args ['tc'] else '0'
 
 # -shear argument
 if args['shear']:
@@ -629,6 +639,7 @@ print('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF'))
 print('  Special relativity:      ' + ('ON' if args['s'] else 'OFF'))
 print('  General relativity:      ' + ('ON' if args['g'] else 'OFF'))
 print('  Cosmic Ray Transfer:     ' + ('ON' if args['cr'] else 'OFF'))
+print('  Thermal Conduction:      ' + ('ON' if args['tc'] else 'OFF'))
 print('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF'))
 print('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF'))
 print('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF'))
@@ -658,6 +669,7 @@ flog.write('  Magnetic fields:         ' + ('ON' if args['b'] else 'OFF')+ '\n')
 flog.write('  Special relativity:      ' + ('ON' if args['s'] else 'OFF')+ '\n')
 flog.write('  General relativity:      ' + ('ON' if args['g'] else 'OFF')+ '\n')
 flog.write('  Cosmic Ray Transfer:     ' + ('ON' if args['cr'] else 'OFF')+ '\n')
+flog.write('  Thermal Conduction:      ' + ('ON' if args['tc'] else 'OFF')+ '\n')
 flog.write('  Frame transformations:   ' + ('ON' if args['t'] else 'OFF')+ '\n')
 flog.write('  ShearingBox:             ' + ('ON' if args['shear'] else 'OFF')+ '\n')
 flog.write('  Debug flags:             ' + ('ON' if args['debug'] else 'OFF')+ '\n')

@@ -19,6 +19,7 @@
 #include "../field/field.hpp"
 #include "srcterms/hydro_srcterms.hpp"
 #include "hydro_diffusion/hydro_diffusion.hpp"
+#include "conduction/tc.hpp"
 
 // constructor, initializes data structures and parameters
 
@@ -100,6 +101,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) {
   // ptr to diffusion object
   phdif = new HydroDiffusion(this,pin);
 
+  // ptr to conduction object
+  ptc = new ThermalConduction(this,pin);
 }
 
 // destructor
@@ -153,7 +156,9 @@ Hydro::~Hydro() {
     gflx_old[X1DIR].DeleteAthenaArray();
     if (pmy_block->block_size.nx2 > 1) gflx_old[X2DIR].DeleteAthenaArray();
     if (pmy_block->block_size.nx3 > 1) gflx_old[X3DIR].DeleteAthenaArray();
-  }
+  } 
+
   delete psrc;
   delete phdif;
+  delete ptc;
 }

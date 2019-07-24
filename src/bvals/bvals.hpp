@@ -50,6 +50,7 @@ enum BoundaryStatus {BNDRY_WAITING, BNDRY_ARRIVED, BNDRY_COMPLETED};
 static bool flip_across_pole_hydro[] = {false, false, true, true, false};
 static bool flip_across_pole_field[] = {false, true, true};
 static bool flip_across_pole_cr[] {false,false,true,true};
+static bool flip_across_pole_tc[] = {false, false, true, true};
 
 //----------------------------------------------------------------------------------------
 //! \struct NeighborBlock
@@ -105,48 +106,62 @@ typedef struct BoundaryData {
 
 //---------------------- prototypes for all BC functions ---------------------------------
 void ReflectInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc, 
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void ReflectOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 void OutflowInnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowInnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowOuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void OutflowOuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 void PolarWedgeInnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 void PolarWedgeOuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                    FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                    FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                    Real time, Real dt,
                     int is, int ie, int js, int je, int ks, int ke, int ngh);
 
 
@@ -215,9 +230,11 @@ public:
   void ClearBoundaryForInit(bool cons_and_field);
   void ClearBoundaryAll(void);
   void ApplyPhysicalBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
-       FaceField &bfdst, AthenaArray<Real> &bcdst, AthenaArray<Real> &crdst, const Real time, const Real dt);
+       FaceField &bfdst, AthenaArray<Real> &bcdst, AthenaArray<Real> &crdst, AthenaArray<Real> &tcdst,
+       const Real time, const Real dt);
   void ProlongateBoundaries(AthenaArray<Real> &pdst, AthenaArray<Real> &cdst,
-       FaceField &bfdst, AthenaArray<Real> &bcdst, AthenaArray<Real> &crdst, const Real time, const Real dt);
+       FaceField &bfdst, AthenaArray<Real> &bcdst, AthenaArray<Real> &crdst, AthenaArray<Real> &tcdst,
+       const Real time, const Real dt);
 
   int LoadCellCenteredBoundaryBufferSameLevel(AthenaArray<Real> &src,
                       int ns, int ne, Real *buf, const NeighborBlock& nb);
@@ -225,8 +242,8 @@ public:
       int ns, int ne, Real *buf, AthenaArray<Real> &cbuf, const NeighborBlock& nb);
   int LoadCellCenteredBoundaryBufferToFiner(AthenaArray<Real> &src,
                       int ns, int ne, Real *buf, const NeighborBlock& nb);
-  void SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src, AthenaArray<Real> &src_cr,
-                                       enum CCBoundaryType type);
+  void SendCellCenteredBoundaryBuffers(AthenaArray<Real> &src, AthenaArray<Real> &src_cr, 
+                                       AthenaArray<Real> &src_tc, enum CCBoundaryType type);
   void SetCellCenteredBoundarySameLevel(AthenaArray<Real> &dst, int ns, int ne,
                                   Real *buf, const NeighborBlock& nb, bool *flip, int &p);
   void SetCellCenteredBoundaryFromCoarser(int ns, int ne, Real *buf,
@@ -234,9 +251,9 @@ public:
   void SetCellCenteredBoundaryFromFiner(AthenaArray<Real> &dst, int ns, int ne,
                                   Real *buf, const NeighborBlock& nb, bool *flip, int &p);
   bool ReceiveCellCenteredBoundaryBuffers(AthenaArray<Real> &dst, AthenaArray<Real> &dst_cr,
-                                          enum CCBoundaryType type);
+                                          AthenaArray<Real> &dst_tc, enum CCBoundaryType type);
   void ReceiveCellCenteredBoundaryBuffersWithWait(AthenaArray<Real> &dst, AthenaArray<Real> &dst_cr,
-                                           enum CCBoundaryType type);
+                                          AthenaArray<Real> &dst_tc, enum CCBoundaryType type);
   void PolarSingleCellCentered(AthenaArray<Real> &dst, int ns, int ne);
 
   int LoadFieldBoundaryBufferSameLevel(FaceField &src, Real *buf,

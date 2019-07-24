@@ -33,6 +33,7 @@
 #include "../parameter_input.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "../cr/cr.hpp"
+#include "../hydro/conduction/tc.hpp"
 
 // MPI header
 #ifdef MPI_PARALLEL
@@ -673,6 +674,7 @@ void BoundaryValues::InitBoundaryData(BoundaryData &bd, enum BoundaryType type) 
         }
         int nvar = NHYDRO; // keep spatial information first
 	if(CR_ENABLED) nvar += (NCR);
+        if(TC_ENABLED) nvar += (NTC);
 	size*= nvar;
       }
       break;
@@ -910,6 +912,8 @@ void BoundaryValues::Initialize(void) {
       int nvar=NHYDRO;
       if (CR_ENABLED)
         nvar += (NCR);
+      if(TC_ENABLED)
+        nvar += (NTC);
       ssize*=nvar; rsize*=nvar;
       // specify the offsets in the view point of the target block: flip ox? signs
       tag=CreateBvalsMPITag(nb.lid, TAG_HYDRO, nb.targetid);
@@ -1463,7 +1467,8 @@ void BoundaryValues::ClearBoundaryAll(void) {
 
 void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
                      AthenaArray<Real> &cdst, FaceField &bfdst, AthenaArray<Real> &bcdst,
-                     AthenaArray<Real> &crdst, const Real time, const Real dt) {
+                     AthenaArray<Real> &crdst, AthenaArray<Real> &tcdst, 
+                     const Real time, const Real dt) {
   MeshBlock *pmb=pmy_block_;
   Coordinates *pco=pmb->pcoord;
   int bis=pmb->is-NGHOST, bie=pmb->ie+NGHOST, bjs=pmb->js, bje=pmb->je,
@@ -1474,7 +1479,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
   if (BoundaryFunction_[OUTER_X3]==NULL && pmb->block_size.nx3>1) bke=pmb->ke+NGHOST;
   // Apply boundary function on inner-x1
   if (BoundaryFunction_[INNER_X1] != NULL) {
-    BoundaryFunction_[INNER_X1](pmb, pco, pdst, bfdst, crdst, time, dt,
+    BoundaryFunction_[INNER_X1](pmb, pco, pdst, bfdst, crdst, tcdst, time, dt,
                                 pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST);
     if (MAGNETIC_FIELDS_ENABLED) {
       pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
@@ -1486,7 +1491,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
   // Apply boundary function on outer-x1
   if (BoundaryFunction_[OUTER_X1] != NULL) {
-    BoundaryFunction_[OUTER_X1](pmb, pco, pdst, bfdst, crdst, time, dt,
+    BoundaryFunction_[OUTER_X1](pmb, pco, pdst, bfdst, crdst, tcdst, time, dt,
                                 pmb->is, pmb->ie, bjs, bje, bks, bke, NGHOST);
     if (MAGNETIC_FIELDS_ENABLED) {
       pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
@@ -1500,7 +1505,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
     // Apply boundary function on inner-x2
     if (BoundaryFunction_[INNER_X2] != NULL) {
-      BoundaryFunction_[INNER_X2](pmb, pco, pdst, bfdst, crdst, time, dt,
+      BoundaryFunction_[INNER_X2](pmb, pco, pdst, bfdst, crdst, tcdst, time, dt,
                                   bis, bie, pmb->js, pmb->je, bks, bke, NGHOST);
       if (MAGNETIC_FIELDS_ENABLED) {
         pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
@@ -1512,7 +1517,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
     // Apply boundary function on outer-x2
     if (BoundaryFunction_[OUTER_X2] != NULL) {
-      BoundaryFunction_[OUTER_X2](pmb, pco, pdst, bfdst, crdst, time, dt,
+      BoundaryFunction_[OUTER_X2](pmb, pco, pdst, bfdst, crdst, tcdst, time, dt,
                                   bis, bie, pmb->js, pmb->je, bks, bke, NGHOST);
       if (MAGNETIC_FIELDS_ENABLED) {
         pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
@@ -1529,7 +1534,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
     // Apply boundary function on inner-x3
     if (BoundaryFunction_[INNER_X3] != NULL) {
-      BoundaryFunction_[INNER_X3](pmb, pco, pdst, bfdst, crdst, time, dt,
+      BoundaryFunction_[INNER_X3](pmb, pco, pdst, bfdst, crdst, tcdst,time, dt,
                                   bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST);
       if (MAGNETIC_FIELDS_ENABLED) {
         pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
@@ -1541,7 +1546,7 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
     // Apply boundary function on outer-x3
     if (BoundaryFunction_[OUTER_X3] != NULL) {
-      BoundaryFunction_[OUTER_X3](pmb, pco, pdst, bfdst, crdst, time, dt,
+      BoundaryFunction_[OUTER_X3](pmb, pco, pdst, bfdst, crdst, tcdst, time, dt,
                                   bis, bie, bjs, bje, pmb->ks, pmb->ke, NGHOST);
       if (MAGNETIC_FIELDS_ENABLED) {
         pmb->pfield->CalculateCellCenteredField(bfdst, bcdst, pco,
@@ -1563,7 +1568,8 @@ void BoundaryValues::ApplyPhysicalBoundaries(AthenaArray<Real> &pdst,
 
 void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
      AthenaArray<Real> &cdst, FaceField &bfdst, AthenaArray<Real> &bcdst,
-     AthenaArray<Real> &crdst, const Real time, const Real dt) {
+     AthenaArray<Real> &crdst, AthenaArray<Real> &tcdst, 
+     const Real time, const Real dt) {
   MeshBlock *pmb=pmy_block_;
   MeshRefinement *pmr=pmb->pmr;
   int64_t &lx1=pmb->loc.lx1;
@@ -1625,7 +1631,11 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
             pmb->pmr->RestrictCellCenteredValues(crdst, pmr->coarse_ucr_, 0, NCR-1,
                                                ris, rie, rjs, rje, rks, rke);
           }
-	  
+	  if(TC_ENABLED){
+            pmb->pmr->RestrictCellCenteredValues(tcdst, pmr->coarse_utc_, 1, NTC,
+                                               ris, rie, rjs, rje, rks, rke);
+          }
+
 	  if (GENERAL_RELATIVITY)
             pmb->pmr->RestrictCellCenteredValues(pdst, pmr->coarse_prim_, 0, NHYDRO-1,
                                                  ris, rie, rjs, rje, rks, rke);
@@ -1729,31 +1739,37 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
     if (nb.ox1==0) {
       if (BoundaryFunction_[INNER_X1]!=NULL) {
         BoundaryFunction_[INNER_X1](pmb, pmr->pcoarsec, pmr->coarse_prim_,
-                pmr->coarse_b_, pmr->coarse_ucr_, time, dt, pmb->cis, pmb->cie, sj, ej, sk, ek, 1);
+                pmr->coarse_b_, pmr->coarse_ucr_, pmr->coarse_utc_, 
+                time, dt, pmb->cis, pmb->cie, sj, ej, sk, ek, 1);
       }
       if (BoundaryFunction_[OUTER_X1]!=NULL) {
         BoundaryFunction_[OUTER_X1](pmb, pmr->pcoarsec, pmr->coarse_prim_,
-                pmr->coarse_b_, pmr->coarse_ucr_, time, dt, pmb->cis, pmb->cie, sj, ej, sk, ek, 1);
+                pmr->coarse_b_, pmr->coarse_ucr_, pmr->coarse_utc_, 
+                time, dt, pmb->cis, pmb->cie, sj, ej, sk, ek, 1);
       }
     }
     if (nb.ox2==0 && pmb->block_size.nx2 > 1) {
       if (BoundaryFunction_[INNER_X2]!=NULL) {
         BoundaryFunction_[INNER_X2](pmb, pmr->pcoarsec, pmr->coarse_prim_,
-                pmr->coarse_b_, pmr->coarse_ucr_, time, dt, si, ei, pmb->cjs, pmb->cje, sk, ek, 1);
+                pmr->coarse_b_, pmr->coarse_ucr_, pmr->coarse_utc_, 
+                time, dt, si, ei, pmb->cjs, pmb->cje, sk, ek, 1);
       }
       if (BoundaryFunction_[OUTER_X2]!=NULL) {
         BoundaryFunction_[OUTER_X2](pmb, pmr->pcoarsec, pmr->coarse_prim_,
-                pmr->coarse_b_, pmr->coarse_ucr_, time, dt, si, ei, pmb->cjs, pmb->cje, sk, ek, 1);
+                pmr->coarse_b_, pmr->coarse_ucr_, pmr->coarse_utc_, 
+                time, dt, si, ei, pmb->cjs, pmb->cje, sk, ek, 1);
       }
     }
     if (nb.ox3==0 && pmb->block_size.nx3 > 1) {
       if (BoundaryFunction_[INNER_X3]!=NULL) {
         BoundaryFunction_[INNER_X3](pmb, pmr->pcoarsec, pmr->coarse_prim_,
-                pmr->coarse_b_, pmr->coarse_ucr_, time, dt, si, ei, sj, ej, pmb->cks, pmb->cke, 1);
+                pmr->coarse_b_, pmr->coarse_ucr_, pmr->coarse_utc_, 
+                time, dt, si, ei, sj, ej, pmb->cks, pmb->cke, 1);
       }
       if (BoundaryFunction_[OUTER_X3]!=NULL) {
         BoundaryFunction_[OUTER_X3](pmb, pmr->pcoarsec, pmr->coarse_prim_,
-                pmr->coarse_b_, pmr->coarse_ucr_, time, dt, si, ei, sj, ej, pmb->cks, pmb->cke, 1);
+                pmr->coarse_b_, pmr->coarse_ucr_, pmr->coarse_utc_, 
+                time, dt, si, ei, sj, ej, pmb->cks, pmb->cke, 1);
       }
     }
 
@@ -1772,6 +1788,10 @@ void BoundaryValues::ProlongateBoundaries(AthenaArray<Real> &pdst,
                                       si, ei, sj, ej, sk, ek);
     if(CR_ENABLED){
       pmr->ProlongateCellCenteredValues(pmr->coarse_ucr_, crdst, 0, NCR-1,
+                                      si, ei, sj, ej, sk, ek);
+    }
+    if(TC_ENABLED){
+      pmr->ProlongateCellCenteredValues(pmr->coarse_utc_, tcdst, 1, NTC,
                                       si, ei, sj, ej, sk, ek);
     }
     // prolongate magnetic fields
