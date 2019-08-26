@@ -14,7 +14,7 @@ TCIntegrator::TCIntegrator(ThermalConduction *ptc, ParameterInput *pin)
 
   int nthreads = ptc->pmy_hydro->pmy_block->pmy_mesh->GetNumMeshThreads();
   int ncells1 = ptc->pmy_hydro->pmy_block->block_size.nx1 + 2*(NGHOST);
-  int ncells2 = ptc->pmy_hydro->pmy_block->block_size.nx3;
+  int ncells2 = ptc->pmy_hydro->pmy_block->block_size.nx2;
   if (ncells2 > 1) ncells2 += 2*(NGHOST);
   int ncells3 = ptc->pmy_hydro->pmy_block->block_size.nx3;
   if (ncells3 > 1) ncells3 += 2*(NGHOST);
