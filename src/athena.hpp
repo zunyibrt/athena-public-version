@@ -132,11 +132,16 @@ enum BoundaryType {BNDRY_HYDRO=0, BNDRY_FIELD=1, BNDRY_GRAVITY=2, BNDRY_MGGRAV=3
 enum CCBoundaryType {HYDRO_CONS=0, HYDRO_PRIM=1};
 enum FluxCorrectionType {FLUX_HYDRO=0};
 
+// Array indices for Cosmic Ray variables
+enum {CRE=0, CRF1=1, CRF2=2, CRF3=3};
+// Array indices for Cosmic Ray Pressure Tensor
+enum {PC11=0, PC22=1, PC33=2, PC12=3, PC13=4, PC23=5};
 //----------------------------------------------------------------------------------------
 // function pointer prototypes for user-defined modules set at runtime
 
 typedef void (*BValFunc_t)(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,
-                           FaceField &b, AthenaArray<Real> &u_cr, Real time, Real dt,
+                           FaceField &b, AthenaArray<Real> &u_cr, AthenaArray<Real> &u_tc,
+                           Real time, Real dt,
                            int is, int ie, int js, int je, int ks, int ke, int ngh);
 typedef int (*AMRFlagFunc_t)(MeshBlock *pmb);
 typedef Real (*MeshGenFunc_t)(Real x, RegionSize rs);
@@ -163,5 +168,8 @@ typedef void (*FieldDiffusionCoeff_t)(FieldDiffusion *pfdif, MeshBlock *pmb,
                                       const AthenaArray<Real> &w,
                                       const AthenaArray<Real> &bmag,
                                       int is, int ie, int js, int je, int ks, int ke);
-
+typedef void (*CRTensor_t)(MeshBlock *pmb, AthenaArray<Real> &prim);
+typedef void (*CRDiff_t)(MeshBlock *pmb, AthenaArray<Real> &u_cr,
+                        AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
+			                  Real dt);
 #endif // ATHENA_HPP_

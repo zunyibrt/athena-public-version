@@ -27,6 +27,7 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../cr/cr.hpp"
+#include "../hydro/conduction/tc.hpp"
 #include "outputs.hpp"
 
 //----------------------------------------------------------------------------------------
@@ -174,7 +175,12 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       memcpy(pdata,pmb->pcr->u_cr.data(),pmb->pcr->u_cr.GetSizeInBytes());
       pdata+=pmb->pcr->u_cr.GetSizeInBytes();
     }
-
+    
+    if (TC_ENABLED){
+      memcpy(pdata,pmb->phydro->ptc->u_tc.data(),
+             pmb->phydro->ptc->u_tc.GetSizeInBytes());
+      pdata+=pmb->phydro->ptc->u_tc.GetSizeInBytes();
+    }
     // NEW_PHYSICS: add output of additional physics to restarts here
     // also update MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock constructor
     // for restarts.
